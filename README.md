@@ -18,6 +18,11 @@ A web-based Learning Management System (LMS) designed for IT education that inte
 - **Database & Cache:** PostgreSQL (Persistent relational data), Redis (Room state snapshots & Pub/Sub)
 - **Deployment & DevOps:** Docker, Docker Compose, Vercel, Railway/Render, Supabase, Redis Cloud
 
+### 2.1 Key Technical & Security Decisions
+- **Learning Material & File Storage:** Text lessons are stored as Markdown directly in PostgreSQL (`materials` table), while video lectures and external documents are embedded via YouTube/Google Drive iframes. Student assignment file uploads (`assessments.type = 'file_upload'`) are stored in **Supabase Storage**.
+- **Cross-Domain RBAC & WebSocket Authentication:** Upon login, the Backend issues a JWT inside an `HttpOnly`, `Secure`, `SameSite=Lax` cookie rather than `localStorage` to prevent XSS token theft. In production, **Vercel Rewrites** (`frontend/vercel.json`) proxy `/api/*` requests to the Backend under the same origin. Real-time `Socket.io` connections are authenticated using a short-lived one-time `socket-ticket` stored in Redis (30s TTL).
+- **Data Integrity & XSS Protection:** All database tables enforce a strict **Soft Delete** policy (`isDeleted = true`) protected by PostgreSQL `BEFORE DELETE` triggers, while administrative actions are recorded in an append-only `admin_logs` table. All user-generated Markdown and comments are sanitized on the client side using `DOMPurify`.
+
 ## 3. Repository Structure
 ```text
 ├── .github/          # Pull Request checklist template
@@ -44,11 +49,15 @@ cp .env.example .env
 ```bash
 docker compose up --build -d
 ```
-4. **Access the application:**
+4. **Seed sample data (Admin, Instructor, Learner accounts & courses):**
+```bash
+docker exec -it lms_backend npm run seed
+```
+
+5. **Access the application:**
 - Open `http://localhost:3000` in your browser.
 - Backend API is exposed at `http://localhost:5000`.
 
----
 
 ### Option 2: Run Manually on Local Machine
 
@@ -69,6 +78,14 @@ cd ../frontend
 cp .env.example .env
 npm install
 npm run dev
+```
+#### 3. Run Automated Tests (Unit/Integration & E2E):
+```bash
+# Run Backend API & RBAC tests
+cd backend && npm test
+
+# Run End-to-End (E2E) tests for US1-US4
+cd frontend && npx playwright test
 ```
 
 ## 5. Deployed Prototype & Demo Accounts
