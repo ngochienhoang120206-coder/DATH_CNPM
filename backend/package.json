@@ -1,0 +1,28 @@
+{
+ "name": "lms-backend",
+ "version": "1.0.0",
+ "main": "src/server.js",
+ "scripts": {
+  "start": "node src/server.js",
+  "dev": "node --watch src/server.js",
+  "seed": "node prisma/seed.js",
+  "test": "jest --runInBand"
+ },
+ "dependencies": {
+  "@prisma/client": "^5.20.0",
+  "bcryptjs": "^2.4.3",
+  "cookie-parser": "^1.4.6",
+  "cors": "^2.8.5",
+  "dotenv": "^16.4.5",
+  "express": "^4.19.2",
+  "ioredis": "^5.4.1",
+  "jsonwebtoken": "^9.0.2",
+  "socket.io": "^4.7.5",
+  "yjs": "^13.6.18"
+ },
+ "devDependencies": {
+  "jest": "^29.7.0",
+  "prisma": "^5.20.0",
+  "supertest": "^7.0.0"
+ }
+}

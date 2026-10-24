@@ -1,0 +1,1 @@
+exports.placeholder = (req, res) => res.json({ success: true, message: 'Interaction & Admin module ready' });
