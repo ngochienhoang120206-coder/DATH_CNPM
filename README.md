@@ -109,18 +109,21 @@ git pull origin main
 ```bash
 git checkout -b feature/issue-<number>-<short-description>
 ```
-### 3. Verify modified files and commit (never stage .env files or secrets):
+### 3. Commit changes (multiple commits allowed per branch):
+- You can make as many commits as needed while working on the branch.
+- Do NOT put Closes #<issue-number> in commit messages; write normal descriptive messages instead (and never stage .env files):
 ```bash
 git status
 git add <file-paths>
-git commit -m "feat: <short description> (refs #<issue-number>)"
+git commit -m "feat: <short description of change>"
 ```
 ### 4. Push the feature branch to GitHub:
 ```bash
 git push origin feature/issue-<number>-<short-description>
 ```
 ### 5. Create a Pull Request (PR):
-Click **Compare & pull request** on GitHub, complete the PR checklist, and include `Closes #<issue-number>` in the PR body to automatically move the task to **Done** on the Kanban board upon merging.
+- Click **Compare & pull request** on GitHub to open one PR for the entire feature branch.
+- Complete the PR checklist and write Closes #<issue-number> once in the PR description body to automatically move the Issue to Done on the Kanban board when merged.
 
 ## 7. Third-Party Services & AI Disclosure
 
