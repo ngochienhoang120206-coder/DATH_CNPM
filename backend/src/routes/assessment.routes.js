@@ -1,4 +1,6 @@
 const router = require('express').Router();
-const ctrl = require('../controllers/assessment.controller');
-router.get('/assessments/health', ctrl.placeholder);
+const assessmentController = require('../controllers/assessment.controller');
+
+router.get('/assessments/health', assessmentController.placeholder);
+
 module.exports = router;

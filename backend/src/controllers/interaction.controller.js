@@ -1,1 +1,7 @@
-exports.placeholder = (req, res) => res.json({ success: true, message: 'Interaction & Admin module ready' });
+const placeholder = async (req, res) => {
+ res.status(200).json({ message: "Interaction & Admin health check OK" });
+};
+
+module.exports = {
+ placeholder,
+};

@@ -1,59 +1,69 @@
 const prisma = require('../config/db');
 
 exports.enrollCourse = async (req, res) => {
-  try {
-    const courseId = req.params.id;
-    const userId = req.user.id;
+ try {
+  const course_id = req.params.id;
+  const user_id = req.user.id;
 
-    const enrollment = await prisma.enrollment.upsert({
-      where: { userId_courseId: { userId, courseId } },
-      update: { status: 'enrolled', isDeleted: false, leftAt: null },
-      create: { userId, courseId, status: 'enrolled' }
-    });
+  const enrollment = await prisma.enrollments.upsert({
+   where: { user_id_course_id: { user_id, course_id } },
+   update: { status: 'enrolled', isDeleted: false, left_at: null },
+   create: { user_id, course_id, status: 'enrolled' }
+  });
 
-    return res.status(201).json({ success: true, data: enrollment });
-  } catch (err) {
-    return res.status(400).json({ success: false, message: err.message });
-  }
+  return res.status(201).json({ success: true, data: enrollment });
+ } catch (err) {
+  return res.status(400).json({ success: false, message: err.message });
+ }
 };
 
 exports.leaveCourse = async (req, res) => {
-  try {
-    const updated = await prisma.enrollment.update({
-      where: { userId_courseId: { userId: req.user.id, courseId: req.params.id } },
-      data: { status: 'left', leftAt: new Date() }
-    });
-    return res.json({ success: true, data: updated });
-  } catch (err) {
-    return res.status(400).json({ success: false, message: err.message });
-  }
+ try {
+  const updated = await prisma.enrollments.update({
+   where: { user_id_course_id: { user_id: req.user.id, course_id: req.params.id } },
+   data: { status: 'left', left_at: new Date() }
+  });
+  return res.json({ success: true, data: updated });
+ } catch (err) {
+  return res.status(400).json({ success: false, message: err.message });
+ }
 };
 
 exports.updateLessonProgress = async (req, res) => {
-  try {
-    const { lessonId } = req.params;
-    const { courseId, isCompleted = true, lastPositionSeconds = 0 } = req.body;
+ try {
+  const lesson_id = req.params.lessonId;
+  const { courseId, isCompleted = true, lastPositionSeconds = 0 } = req.body;
 
-    const enrollment = await prisma.enrollment.findFirst({
-      where: { userId: req.user.id, courseId, status: 'enrolled', isDeleted: false }
-    });
-    if (!enrollment) {
-      return res.status(403).json({ success: false, message: 'User is not enrolled in this course' });
-    }
+  const enrollment = await prisma.enrollments.findFirst({
+   where: { user_id: req.user.id, course_id: courseId, status: 'enrolled', isDeleted: false }
+  });
+  if (!enrollment) {
+   return res.status(403).json({ success: false, message: 'User is not enrolled in this course' });
+  }
 
-    const progress = await prisma.progress.upsert({
-      where: { enrollmentId_lessonId: { enrollmentId: enrollment.id, lessonId } },
-      update: { isCompleted, lastPositionSeconds, completedAt: isCompleted ? new Date() : null, isDeleted: false },
-      create: { enrollmentId: enrollment.id, lessonId, isCompleted, lastPositionSeconds, completedAt: isCompleted ? new Date() : null }
-    });
+  const progressRecord = await prisma.progress.upsert({
+   where: { enrollment_id_lesson_id: { enrollment_id: enrollment.id, lesson_id } },
+   update: {
+    is_completed: isCompleted,
+    last_position_seconds: lastPositionSeconds,
+    completed_at: isCompleted ? new Date() : null
+   },
+   create: {
+    enrollment_id: enrollment.id,
+    lesson_id,
+    is_completed: isCompleted,
+    last_position_seconds: lastPositionSeconds,
+    completed_at: isCompleted ? new Date() : null
+   }
+  });
 
-    await prisma.enrollment.update({
-      where: { id: enrollment.id },
-      data: { lastLessonId: lessonId }
-    });
+  await prisma.enrollments.update({
+   where: { id: enrollment.id },
+   data: { last_lesson_id: lesson_id }
+  });
 
-    return res.json({ success: true, data: progress });
-  } catch (err) {
-    return res.status(400).json({ success: false, message: err.message });
-  }
+  return res.json({ success: true, data: progressRecord });
+ } catch (err) {
+  return res.status(400).json({ success: false, message: err.message });
+ }
 };

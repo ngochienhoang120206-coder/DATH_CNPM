@@ -1,4 +1,6 @@
 const router = require('express').Router();
-const ctrl = require('../controllers/interaction.controller');
-router.get('/interactions/health', ctrl.placeholder);
+const interactionController = require('../controllers/interaction.controller');
+
+router.get('/interactions/health', interactionController.placeholder);
+
 module.exports = router;
