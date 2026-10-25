@@ -1,103 +1,59 @@
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const crypto = require('crypto');
-const prisma = require('../config/db');
-const redis = require('../config/redis');
+import { authService } from '../services/auth.service.js';
+import { COOKIE_OPTIONS } from '../common/constant/app.constant.js';
+import { responseSuccess } from '../common/helpers/response.helper.js';
 
-const COOKIE_OPTIONS = {
- httpOnly: true,
- secure: process.env.NODE_ENV === 'production',
- sameSite: 'lax',
- maxAge: 24 * 60 * 60 * 1000
-};
+export const authController = {
+  async register(req, res, next) {
+    const { email, fullName, password } = req.body;
+    const data = await authService.register({ email, fullName, password });
+    const response = responseSuccess(data, 'Registered successfully', 201);
+    res.status(response.statusCode).json(response);
+  },
 
-exports.register = async (req, res) => {
- try {
-  const { email, fullName, password, roleName = 'student' } = req.body;
-  const role = await prisma.roles.findUnique({ where: { name: roleName } });
-  if (!role) return res.status(400).json({ success: false, message: 'Invalid role' });
+  async login(req, res, next) {
+    const { email, password } = req.body;
+    const { token, payload } = await authService.login({ email, password });
 
-  const hashedPassword = await bcrypt.hash(password, 10);
-  const user = await prisma.users.create({
-   data: {
-    email,
-    full_name: fullName,
-    password: hashedPassword,
-    role_id: role.id
-   }
-  });
+    res.cookie('access_token', token, COOKIE_OPTIONS);
+    const response = responseSuccess(payload, 'Login successful');
+    res.status(response.statusCode).json(response);
+  },
 
-  return res.status(201).json({
-   success: true,
-   message: 'Registered successfully',
-   data: { id: user.id, email: user.email, fullName: user.full_name, role: role.name }
-  });
- } catch (err) {
-  return res.status(400).json({ success: false, message: err.message });
- }
-};
+  async logout(req, res, next) {
+    res.clearCookie('access_token', COOKIE_OPTIONS);
+    const response = responseSuccess(null, 'Logged out successfully');
+    res.status(response.statusCode).json(response);
+  },
 
-exports.login = async (req, res) => {
- try {
-  const { email, password } = req.body;
-  const user = await prisma.users.findFirst({
-   where: { email, isDeleted: false },
-   include: { role: true }
-  });
+  async getProfile(req, res, next) {
+    const user = await authService.getProfile(req.user.id);
+    const response = responseSuccess(user, 'Get profile successfully');
+    res.status(response.statusCode).json(response);
+  },
 
-  if (!user || !(await bcrypt.compare(password, user.password))) {
-   return res.status(401).json({ success: false, message: 'Invalid email or password' });
+  async updateProfile(req, res, next) {
+    const user = await authService.updateProfile(req.user.id, req.body);
+    const response = responseSuccess(user, 'Profile updated successfully');
+    res.status(response.statusCode).json(response);
+  },
+
+  async forgotPassword(req, res, next) {
+    await authService.requestPasswordReset(req.body.email);
+    const response = responseSuccess(null, 'Nếu tài khoản tồn tại, email đặt lại mật khẩu sẽ được gửi.');
+    res.status(response.statusCode).json(response);
+  },
+
+  async resetPassword(req, res, next) {
+    await authService.resetPassword(req.body.token, req.body.newPassword);
+    const response = responseSuccess(null, 'Password reset successfully');
+    res.status(response.statusCode).json(response);
+  },
+
+  async issueSocketTicket(req, res, next) {
+    const ticket = await authService.issueSocketTicket(req.user);
+    const response = responseSuccess({ ticket }, 'Issued socket ticket successfully');
+    res.status(response.statusCode).json(response);
   }
-  if (user.status === 'banned') {
-   return res.status(403).json({ success: false, message: 'Account has been banned' });
-  }
-
-  const payload = { id: user.id, email: user.email, fullName: user.full_name, role: user.role.name };
-  const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '24h' });
-
-  res.cookie('access_token', token, COOKIE_OPTIONS);
-  return res.json({ success: true, message: 'Login successful', data: payload });
- } catch (err) {
-  return res.status(500).json({ success: false, message: err.message });
- }
 };
 
-exports.logout = (req, res) => {
- res.clearCookie('access_token', COOKIE_OPTIONS);
- return res.json({ success: true, message: 'Logged out successfully' });
-};
-
-exports.getProfile = async (req, res) => {
- try {
-  const user = await prisma.users.findFirst({
-   where: { id: req.user.id, isDeleted: false },
-   include: { role: { select: { name: true } } }
-  });
-  if (!user) return res.status(404).json({ success: false, message: 'User not found' });
-
-  return res.json({
-   success: true,
-   data: {
-    id: user.id,
-    email: user.email,
-    fullName: user.full_name,
-    avatarUrl: user.avatar_url,
-    bio: user.bio,
-    status: user.status,
-    role: user.role.name
-   }
-  });
- } catch (err) {
-  return res.status(500).json({ success: false, message: err.message });
- }
-};
-
-exports.issueSocketTicket = async (req, res) => {
- try {
-  const ticket = crypto.randomUUID();
-  await redis.set(`socket_ticket:${ticket}`, JSON.stringify(req.user), 'EX', 30);
-  return res.json({ success: true, data: { ticket } });
- } catch (err) {
-  return res.status(500).json({ success: false, message: err.message });
- }
-};
+export default authController;

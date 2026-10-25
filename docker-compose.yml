@@ -41,6 +41,8 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres_password}@postgres:5432/${POSTGRES_DB:-lms_db}
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:-replace_with_strong_jwt_secret_key}
+      ACCESS_TOKEN_SECRET: ${ACCESS_TOKEN_SECRET}
+      REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET}
       CLIENT_URL: http://localhost:${FRONTEND_PORT:-3000}
     depends_on:
       postgres:

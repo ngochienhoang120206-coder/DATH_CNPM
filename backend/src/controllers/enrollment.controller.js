@@ -1,69 +1,36 @@
-const prisma = require('../config/db');
+import { enrollmentService } from '../services/enrollment.service.js';
+import { responseSuccess } from '../common/helpers/response.helper.js';
 
-exports.enrollCourse = async (req, res) => {
- try {
-  const course_id = req.params.id;
-  const user_id = req.user.id;
+export const enrollmentController = {
+  async enrollCourse(req, res, next) {
+    const courseId = req.params.id;
+    const userId = req.user.id;
+    const enrollment = await enrollmentService.enrollCourse(userId, courseId);
+    const response = responseSuccess(enrollment, 'Enrolled course successfully', 201);
+    res.status(response.statusCode).json(response);
+  },
 
-  const enrollment = await prisma.enrollments.upsert({
-   where: { user_id_course_id: { user_id, course_id } },
-   update: { status: 'enrolled', isDeleted: false, left_at: null },
-   create: { user_id, course_id, status: 'enrolled' }
-  });
+  async leaveCourse(req, res, next) {
+    const courseId = req.params.id;
+    const userId = req.user.id;
+    const updated = await enrollmentService.leaveCourse(userId, courseId);
+    const response = responseSuccess(updated, 'Left course successfully');
+    res.status(response.statusCode).json(response);
+  },
 
-  return res.status(201).json({ success: true, data: enrollment });
- } catch (err) {
-  return res.status(400).json({ success: false, message: err.message });
- }
-};
-
-exports.leaveCourse = async (req, res) => {
- try {
-  const updated = await prisma.enrollments.update({
-   where: { user_id_course_id: { user_id: req.user.id, course_id: req.params.id } },
-   data: { status: 'left', left_at: new Date() }
-  });
-  return res.json({ success: true, data: updated });
- } catch (err) {
-  return res.status(400).json({ success: false, message: err.message });
- }
-};
-
-exports.updateLessonProgress = async (req, res) => {
- try {
-  const lesson_id = req.params.lessonId;
-  const { courseId, isCompleted = true, lastPositionSeconds = 0 } = req.body;
-
-  const enrollment = await prisma.enrollments.findFirst({
-   where: { user_id: req.user.id, course_id: courseId, status: 'enrolled', isDeleted: false }
-  });
-  if (!enrollment) {
-   return res.status(403).json({ success: false, message: 'User is not enrolled in this course' });
+  async updateLessonProgress(req, res, next) {
+    const lessonId = req.params.lessonId;
+    const { courseId, isCompleted = true, lastPositionSeconds = 0 } = req.body;
+    const progressRecord = await enrollmentService.updateLessonProgress({
+      userId: req.user.id,
+      lessonId,
+      courseId,
+      isCompleted,
+      lastPositionSeconds
+    });
+    const response = responseSuccess(progressRecord, 'Updated lesson progress successfully');
+    res.status(response.statusCode).json(response);
   }
-
-  const progressRecord = await prisma.progress.upsert({
-   where: { enrollment_id_lesson_id: { enrollment_id: enrollment.id, lesson_id } },
-   update: {
-    is_completed: isCompleted,
-    last_position_seconds: lastPositionSeconds,
-    completed_at: isCompleted ? new Date() : null
-   },
-   create: {
-    enrollment_id: enrollment.id,
-    lesson_id,
-    is_completed: isCompleted,
-    last_position_seconds: lastPositionSeconds,
-    completed_at: isCompleted ? new Date() : null
-   }
-  });
-
-  await prisma.enrollments.update({
-   where: { id: enrollment.id },
-   data: { last_lesson_id: lesson_id }
-  });
-
-  return res.json({ success: true, data: progressRecord });
- } catch (err) {
-  return res.status(400).json({ success: false, message: err.message });
- }
 };
+
+export default enrollmentController;

@@ -1,0 +1,22 @@
+DATH Auth API acceptance tests
+Finished: 2026-10-25T13:20:23.876Z
+Requests: 17; failures: 0
+Assertions: 17; failures: 0
+
+PASS | Unauthenticated profile is rejected | HTTP 401 | 22 ms | 1/1 assertions
+PASS | Register cannot assign a privileged role | HTTP 201 | 235 ms | 1/1 assertions
+PASS | Banned user cannot log in | HTTP 403 | 67 ms | 1/1 assertions
+PASS | Banned user cannot access profile | HTTP 403 | 9 ms | 1/1 assertions
+PASS | Wrong password is rejected | HTTP 401 | 58 ms | 1/1 assertions
+PASS | Login sets secure role-bearing 24-hour cookie | HTTP 200 | 74 ms | 1/1 assertions
+PASS | Get profile with cookie | HTTP 200 | 8 ms | 1/1 assertions
+PASS | Update profile fields | HTTP 200 | 18 ms | 1/1 assertions
+PASS | Profile update rejects role changes | HTTP 400 | 6 ms | 1/1 assertions
+PASS | Request password reset | HTTP 200 | 424 ms | 1/1 assertions
+PASS | Find reset email in Mailpit | HTTP 200 | 6 ms | 1/1 assertions
+PASS | Extract reset token from email | HTTP 200 | 4 ms | 1/1 assertions
+PASS | Reset password with emailed token | HTTP 200 | 80 ms | 1/1 assertions
+PASS | Reset token cannot be reused | HTTP 400 | 4 ms | 1/1 assertions
+PASS | Old password no longer works | HTTP 401 | 74 ms | 1/1 assertions
+PASS | New password works | HTTP 200 | 76 ms | 1/1 assertions
+PASS | Logout clears the session cookie | HTTP 200 | 2 ms | 1/1 assertions

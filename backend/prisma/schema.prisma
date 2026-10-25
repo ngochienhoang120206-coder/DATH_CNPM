@@ -1,11 +1,11 @@
 generator client {
   provider = "prisma-client-js"
-  //output   = "../src/common/prisma/generated/prisma"
+  output   = "../src/common/prisma/generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  // url = env("DATABASE_URL")
 }
 
 // =====================================================
