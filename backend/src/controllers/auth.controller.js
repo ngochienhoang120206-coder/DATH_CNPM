@@ -93,11 +93,11 @@ exports.getProfile = async (req, res) => {
 };
 
 exports.issueSocketTicket = async (req, res) => {
- try {
-  const ticket = crypto.randomUUID();
-  await redis.set(`socket_ticket:${ticket}`, JSON.stringify(req.user), 'EX', 30);
-  return res.json({ success: true, data: { ticket } });
- } catch (err) {
-  return res.status(500).json({ success: false, message: err.message });
- }
+  try {
+    const ticket = crypto.randomUUID();
+    await redis.set(`socket_ticket:${ticket}`, JSON.stringify(req.user), 'EX', 30);
+    return res.json({ success: true, data: { ticket } });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
 };
