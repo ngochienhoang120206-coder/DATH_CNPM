@@ -5,7 +5,8 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      "monaco-editor/esm/vs/editor/editor.api.js": "monaco-editor"
+      'monaco-editor/esm/vs/editor/editor.api.js': 'monaco-editor',
+      'monaco-editor/esm/vs/editor/editor.api': 'monaco-editor'
     }
   },
   server: {
@@ -15,15 +16,6 @@ export default defineConfig({
         target: 'http://localhost:5000',
         changeOrigin: true
       }
-    }
-  },
-  build: {
-    rollupOptions: {
-      external: [
-        'monaco-editor',
-        'monaco-editor/esm/vs/editor/editor.api',
-        'monaco-editor/esm/vs/editor/editor.api.js'
-      ]
     }
   }
 });
