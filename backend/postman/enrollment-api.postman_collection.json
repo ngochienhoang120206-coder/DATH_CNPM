@@ -1,0 +1,59 @@
+{
+  "info": {
+    "name": "DATH Enrollment API acceptance tests (Issue #8)",
+    "description": "Runs enroll, list, progress, resume, leave and authorization checks. Configure baseUrl, studentEmail/studentPassword, publishedCourseId and lessonId from test fixtures.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Unauthenticated enrollment list is rejected",
+      "request": { "method": "GET", "url": "{{baseUrl}}/api/enrollments/me" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('enrollment list requires authentication', function () { pm.response.to.have.status(401); });"] } }]
+    },
+    {
+      "name": "Student login",
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{studentEmail}}\",\n  \"password\": \"{{studentPassword}}\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/api/auth/login" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('student login succeeds', function () { pm.response.to.have.status(200); });"] } }]
+    },
+    {
+      "name": "Enroll in published course",
+      "request": { "method": "POST", "url": "{{baseUrl}}/api/courses/{{publishedCourseId}}/enroll" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('enrollment is created', function () { pm.response.to.have.status(201); pm.expect(pm.response.json().data.status).to.eql('enrolled'); });"] } }]
+    },
+    {
+      "name": "List my enrollments",
+      "request": { "method": "GET", "url": "{{baseUrl}}/api/enrollments/me" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('my enrollments include the selected course', function () { const body = pm.response.json(); pm.response.to.have.status(200); pm.expect(body.data.some((entry) => entry.course_id === pm.environment.get('publishedCourseId'))).to.eql(true); });"] } }]
+    },
+    {
+      "name": "List my courses grouped by status",
+      "request": { "method": "GET", "url": "{{baseUrl}}/api/enrollments/my-courses" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('my courses response separates active and completed courses', function () { const data = pm.response.json().data; pm.response.to.have.status(200); pm.expect(data.inProgress).to.be.an('array'); pm.expect(data.completed).to.be.an('array'); });"] } }]
+    },
+    {
+      "name": "Update lesson progress",
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"is_completed\": true, \"last_position_seconds\": 45 }", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/api/lessons/{{lessonId}}/progress" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('progress is saved and enrollment summary is returned', function () { const data = pm.response.json().data; pm.response.to.have.status(200); pm.expect(data.is_completed).to.eql(true); pm.expect(data.enrollment.last_lesson_id).to.eql(pm.environment.get('lessonId')); pm.expect(data.enrollment.progress_percent).to.be.a('number'); });"] } }]
+    },
+    {
+      "name": "Reject invalid playback position",
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"is_completed\": false, \"last_position_seconds\": -1 }", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/api/lessons/{{lessonId}}/progress" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('negative playback position is rejected', function () { pm.response.to.have.status(400); });"] } }]
+    },
+    {
+      "name": "Get resume lesson",
+      "request": { "method": "GET", "url": "{{baseUrl}}/api/enrollments/resume?courseId={{publishedCourseId}}" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('resume response points to the last lesson', function () { const data = pm.response.json().data; pm.response.to.have.status(200); pm.expect(data.courseId).to.eql(pm.environment.get('publishedCourseId')); pm.expect(data.lastLessonId).to.eql(pm.environment.get('lessonId')); });"] } }]
+    },
+    {
+      "name": "Leave course",
+      "request": { "method": "DELETE", "url": "{{baseUrl}}/api/courses/{{publishedCourseId}}/enroll" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('student can leave course', function () { pm.response.to.have.status(200); pm.expect(pm.response.json().data.status).to.eql('left'); });"] } }]
+    },
+    {
+      "name": "Progress update is blocked after leaving",
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"is_completed\": false, \"last_position_seconds\": 10 }", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/api/lessons/{{lessonId}}/progress" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('non-enrolled student cannot update progress', function () { pm.response.to.have.status(403); });"] } }]
+    }
+  ]
+}
