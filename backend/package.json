@@ -7,9 +7,11 @@
     "type": "module",
     "main": "server.js",
     "scripts": {
-        "test": "npm run test:auth",
-        "dev": "npx kill-port 3069 && nodemon server.js",
-        "start": "node server.js",
+        "test": "npm run prisma && npm run test:auth",
+        "dev": "npx prisma generate && nodemon server.js",
+        "start": "npx prisma generate && node server.js",
+        "build": "npx prisma generate",
+        "seed": "npm run prisma && node prisma/seed.js",
         "prisma": "npx prisma generate",
         "test:auth": "node ./scripts/run-auth-postman.js"
     },

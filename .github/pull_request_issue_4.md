@@ -21,11 +21,14 @@ Closes #4
 - Prevents public registration from assigning privileged roles.
 - Rejects banned and soft-deleted users during login and authenticated requests.
 - Centralizes API and Prisma error mapping.
-- Keeps generated local environment files and test reports out of version control.
+- Regenerates the Prisma client on start, dev, seed and test commands; keeps the generated output ignored instead of committing generated client files.
+- Excludes local environment files and records a sanitized acceptance-test report without cookies, JWTs, reset tokens or response bodies.
 
 ## Verification
 
-The saved Newman acceptance report records **17 requests, 17 assertions, 0 failures** for registration, login, role enforcement, profile updates, password reset and logout. Run the suite with `cd backend && npm run test:auth` after configuring the local test database and Mailpit services.
+The suite was run from the pushed branch in an isolated Docker stack. It passed **17 requests, 17 assertions, 0 failures** for registration, login, role enforcement, profile updates, password reset and logout. The per-request results are in `backend/postman/reports/auth-test.log`.
+
+Run with `cd backend && npm test` after starting the local Postgres, Redis, Mailpit and backend test services. `npm test` generates the Prisma client before running the Newman collection.
 
 ## Review checklist
 

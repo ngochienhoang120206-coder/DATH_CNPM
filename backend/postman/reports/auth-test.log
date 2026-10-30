@@ -1,22 +1,22 @@
 DATH Auth API acceptance tests
-Finished: 2026-10-30T05:57:09.963Z
+Finished: 2026-10-30T06:07:39.412Z
 Requests: 17; failures: 0
 Assertions: 17; failures: 0
 
 PASS | Unauthenticated profile is rejected | HTTP 401 | 33 ms | 1/1 assertions
-PASS | Register cannot assign a privileged role | HTTP 201 | 1101 ms | 1/1 assertions
+PASS | Register cannot assign a privileged role | HTTP 201 | 376 ms | 1/1 assertions
 PASS | Banned user cannot log in | HTTP 403 | 106 ms | 1/1 assertions
 PASS | Banned user cannot access profile | HTTP 403 | 20 ms | 1/1 assertions
-PASS | Wrong password is rejected | HTTP 401 | 94 ms | 1/1 assertions
-PASS | Login sets secure role-bearing 24-hour cookie | HTTP 200 | 344 ms | 1/1 assertions
-PASS | Get profile with cookie | HTTP 200 | 117 ms | 1/1 assertions
-PASS | Update profile fields | HTTP 200 | 247 ms | 1/1 assertions
+PASS | Wrong password is rejected | HTTP 401 | 92 ms | 1/1 assertions
+PASS | Login sets secure role-bearing 24-hour cookie | HTTP 200 | 99 ms | 1/1 assertions
+PASS | Get profile with cookie | HTTP 200 | 15 ms | 1/1 assertions
+PASS | Update profile fields | HTTP 200 | 34 ms | 1/1 assertions
 PASS | Profile update rejects role changes | HTTP 400 | 13 ms | 1/1 assertions
-PASS | Request password reset | HTTP 200 | 92 ms | 1/1 assertions
+PASS | Request password reset | HTTP 200 | 127 ms | 1/1 assertions
 PASS | Find reset email in Mailpit | HTTP 200 | 16 ms | 1/1 assertions
-PASS | Extract reset token from email | HTTP 200 | 5 ms | 1/1 assertions
-PASS | Reset password with emailed token | HTTP 200 | 216 ms | 1/1 assertions
-PASS | Reset token cannot be reused | HTTP 400 | 47 ms | 1/1 assertions
-PASS | Old password no longer works | HTTP 401 | 603 ms | 1/1 assertions
-PASS | New password works | HTTP 200 | 175 ms | 1/1 assertions
+PASS | Extract reset token from email | HTTP 200 | 6 ms | 1/1 assertions
+PASS | Reset password with emailed token | HTTP 200 | 109 ms | 1/1 assertions
+PASS | Reset token cannot be reused | HTTP 400 | 8 ms | 1/1 assertions
+PASS | Old password no longer works | HTTP 401 | 89 ms | 1/1 assertions
+PASS | New password works | HTTP 200 | 93 ms | 1/1 assertions
 PASS | Logout clears the session cookie | HTTP 200 | 5 ms | 1/1 assertions
