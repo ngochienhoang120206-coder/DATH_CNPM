@@ -2,29 +2,33 @@ const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 
-const authRoutes = require('./routes/auth.routes');
-const courseRoutes = require('./routes/course.routes');
-const enrollmentRoutes = require('./routes/enrollment.routes');
-const assessmentRoutes = require('./routes/assessment.routes');
-const interactionRoutes = require('./routes/interaction.routes');
-
 const app = express();
 
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:5173',
+  process.env.CLIENT_URL,
+  process.env.FRONTEND_URL
+].filter(Boolean);
+
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
-  credentials: true
+  origin: allowedOrigins,
+  credentials: true
 }));
+
 app.use(express.json());
 app.use(cookieParser());
 
-app.get('/api/health', (req, res) => {
-  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-app.use('/api', authRoutes);
-app.use('/api', courseRoutes);
-app.use('/api', enrollmentRoutes);
-app.use('/api', assessmentRoutes);
-app.use('/api', interactionRoutes);
+const resolveRouter = (mod) => (typeof mod === 'function' ? mod : mod?.default || express.Router());
+
+app.use('/api', resolveRouter(require('./routes/auth.routes')));
+app.use('/api', resolveRouter(require('./routes/course.routes')));
+app.use('/api', resolveRouter(require('./routes/enrollment.routes')));
+app.use('/api', resolveRouter(require('./routes/assessment.routes')));
+app.use('/api', resolveRouter(require('./routes/interaction.routes')));
 
 module.exports = app;
