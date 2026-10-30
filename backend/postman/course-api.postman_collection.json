@@ -1,0 +1,84 @@
+{
+  "info": {
+    "name": "DATH Course API acceptance tests (Issue #6)",
+    "description": "Runs the authenticated course, chapter, lesson, and material API flow. Configure baseUrl and instructorEmail/instructorPassword with an instructor account before running.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Instructor login",
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{instructorEmail}}\",\n  \"password\": \"{{instructorPassword}}\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/api/auth/login" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('instructor login succeeds', function () { pm.response.to.have.status(200); });"] } }]
+    },
+    {
+      "name": "List published courses and pagination",
+      "request": { "method": "GET", "url": "{{baseUrl}}/api/courses?page=1&limit=5" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('course list returns paginated items', function () {", "  pm.response.to.have.status(200);", "  const body = pm.response.json();", "  pm.expect(body.data).to.be.an('array');", "  pm.expect(body.pagination).to.include({ page: 1, limit: 5 });", "});"] } }]
+    },
+    {
+      "name": "Create a published course",
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"title\": \"API test course {{runId}}\",\n  \"description\": \"Temporary course for Issue 6 acceptance tests\",\n  \"is_published\": true\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/api/courses" },
+      "event": [{ "listen": "prerequest", "script": { "type": "text/javascript", "exec": ["pm.environment.set('runId', Date.now());"] } }, { "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('course is created', function () {", "  pm.response.to.have.status(201);", "  const body = pm.response.json();", "  pm.expect(body.data.title).to.include('API test course');", "  pm.environment.set('courseId', body.data.id);", "});"] } }]
+    },
+    {
+      "name": "Update course",
+      "request": { "method": "PUT", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"title\": \"Updated API test course\" }", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/api/courses/{{courseId}}" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('course update is persisted', function () { pm.response.to.have.status(200); pm.expect(pm.response.json().data.title).to.eql('Updated API test course'); });"] } }]
+    },
+    {
+      "name": "Create chapter",
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"title\": \"Chapter one\", \"position\": 1 }", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/api/courses/{{courseId}}/chapters" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('chapter is created', function () { pm.response.to.have.status(201); pm.environment.set('chapterId', pm.response.json().data.id); });"] } }]
+    },
+    {
+      "name": "Update chapter",
+      "request": { "method": "PUT", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"title\": \"Chapter one updated\" }", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/api/chapters/{{chapterId}}" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('chapter update is persisted', function () { pm.response.to.have.status(200); pm.expect(pm.response.json().data.title).to.eql('Chapter one updated'); });"] } }]
+    },
+    {
+      "name": "Create lesson",
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"title\": \"Lesson one\", \"position\": 1 }", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/api/chapters/{{chapterId}}/lessons" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('lesson is created', function () { pm.response.to.have.status(201); pm.environment.set('lessonId', pm.response.json().data.id); });"] } }]
+    },
+    {
+      "name": "Update lesson",
+      "request": { "method": "PUT", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"title\": \"Lesson one updated\" }", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/api/lessons/{{lessonId}}" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('lesson update is persisted', function () { pm.response.to.have.status(200); pm.expect(pm.response.json().data.title).to.eql('Lesson one updated'); });"] } }]
+    },
+    {
+      "name": "Create text material",
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"type\": \"text\", \"title\": \"Notes\", \"content\": \"Acceptance test material\", \"position\": 1 }", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/api/lessons/{{lessonId}}/materials" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('text material is created', function () { pm.response.to.have.status(201); pm.environment.set('materialId', pm.response.json().data.id); });"] } }]
+    },
+    {
+      "name": "Update material",
+      "request": { "method": "PUT", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"title\": \"Updated notes\", \"content\": \"Updated acceptance test material\" }", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/api/materials/{{materialId}}" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('material update is persisted', function () { pm.response.to.have.status(200); pm.expect(pm.response.json().data.title).to.eql('Updated notes'); });"] } }]
+    },
+    {
+      "name": "Course detail contains created content",
+      "request": { "method": "GET", "url": "{{baseUrl}}/api/courses/{{courseId}}" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('owner sees nested lessons and materials', function () {", "  pm.response.to.have.status(200);", "  const course = pm.response.json().data;", "  pm.expect(course.chapters[0].lessons[0].materials[0].id).to.eql(pm.environment.get('materialId'));", "});"] } }]
+    },
+    {
+      "name": "Delete material",
+      "request": { "method": "DELETE", "url": "{{baseUrl}}/api/materials/{{materialId}}" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('material is soft-deleted', function () { pm.response.to.have.status(200); pm.expect(pm.response.json().data).to.eql(null); });"] } }]
+    },
+    {
+      "name": "Delete lesson",
+      "request": { "method": "DELETE", "url": "{{baseUrl}}/api/lessons/{{lessonId}}" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('lesson is soft-deleted', function () { pm.response.to.have.status(200); });"] } }]
+    },
+    {
+      "name": "Delete chapter",
+      "request": { "method": "DELETE", "url": "{{baseUrl}}/api/chapters/{{chapterId}}" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('chapter is soft-deleted', function () { pm.response.to.have.status(200); });"] } }]
+    },
+    {
+      "name": "Delete course",
+      "request": { "method": "DELETE", "url": "{{baseUrl}}/api/courses/{{courseId}}" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('course and descendants are soft-deleted', function () { pm.response.to.have.status(200); });"] } }]
+    }
+  ]
+}

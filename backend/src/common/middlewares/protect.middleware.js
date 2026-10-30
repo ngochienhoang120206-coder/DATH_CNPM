@@ -41,9 +41,22 @@ export const protect = async (req, res, next) => {
         throw new ForbiddenException("Tài khoản của bạn đã bị khóa do vi phạm");
     }
 
-    req.user = { ...user, role: user.role?.name || user.role };
+    req.user = {
+        ...user,
+        userId: user.id,
+        fullName: user.full_name,
+        full_name: user.full_name,
+        role: user.role?.name || user.role,
+    };
 
     next();
+};
+
+export const optionalProtect = async (req, res, next) => {
+    const hasCookieToken = Boolean(req.cookies?.access_token || req.cookies?.accessToken);
+    const hasBearerToken = req.headers.authorization?.startsWith("Bearer ");
+    if (!hasCookieToken && !hasBearerToken) return next();
+    return protect(req, res, next);
 };
 
 export default protect;
