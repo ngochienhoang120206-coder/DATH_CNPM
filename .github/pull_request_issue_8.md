@@ -2,31 +2,36 @@
 
 ## Summary
 
-Implements student enrollment lifecycle and learning-progress tracking, including resume information and progress summaries.
+Implements student enrollment lifecycle, lesson progress tracking, course completion summaries and resume information.
 
 Closes #8
 
 ## API changes
 
-- `POST /api/courses/:courseId/enroll` and `POST /api/enrollments` — enroll a student in a published course.
-- `DELETE /api/courses/:courseId/enroll` — mark the student's enrollment as left.
-- `GET /api/enrollments/me` — list the current student's active and completed enrollments.
-- `GET /api/enrollments/my-courses` — group courses into in-progress and completed lists.
-- `POST /api/lessons/:lessonId/progress` and `PUT /api/progress/:lessonId` — save lesson completion and playback position.
-- `GET /api/enrollments/resume` — return the most recently updated enrollment and its last lesson.
+- `POST /api/courses/:courseId/enroll` and `POST /api/enrollments` — enroll in a published course.
+- `DELETE /api/courses/:courseId/enroll` — leave a course.
+- `GET /api/enrollments/me` and `GET /api/enrollments/my-courses` — list enrollments and group courses by progress status.
+- `POST /api/lessons/:lessonId/progress` and `PUT /api/progress/:lessonId` — save completion and playback position.
+- `GET /api/enrollments/resume` — return the most recently updated enrollment and lesson.
 
 ## Rules and behavior
 
 - Restricts enrollment and progress changes to authenticated students.
-- Rejects missing/unpublished courses, invalid lesson positions and progress updates without an active enrollment.
-- Persists per-lesson progress, recalculates the course completion percentage and marks the enrollment complete when all active lessons are completed.
-- Re-enrollment clears the prior left/deleted state.
+- Rejects unavailable courses, invalid playback positions and progress updates without an active enrollment.
+- Recalculates course completion and marks enrollment complete when all active lessons are completed.
+- Re-enrollment clears the previous left/deleted state.
 
-## Tests
+## Verification
 
-`backend/postman/enrollment-api.postman_collection.json` covers authentication, enroll/list/group, progress validation and persistence, resume lookup, leaving a course and denying progress after leaving.
+Ran the Issue #8 Newman acceptance collection against the isolated Docker test stack (PostgreSQL and Redis).
 
-Run against a local backend with a seeded student, published course and lesson:
+- Requests: 10; passed: 10; failed: 0.
+- Assertions: 10; passed: 10; failed: 0.
+- Includes checks for unauthenticated access, enrollment, progress persistence, validation, resume, leaving and post-leave authorization.
+- Per-request status and timing: [`backend/postman/reports/enrollment-api-test.log`](backend/postman/reports/enrollment-api-test.log).
+- Docker API image built successfully and Prisma schema was applied to the disposable test database.
+
+Run locally with Newman:
 
 ```sh
 npx newman run backend/postman/enrollment-api.postman_collection.json \
@@ -39,12 +44,12 @@ npx newman run backend/postman/enrollment-api.postman_collection.json \
 
 ## Review checklist
 
-- [ ] Newman collection passes against the configured test database.
-- [ ] Confirm course completion behavior with a course containing multiple lessons.
+- [x] Newman acceptance collection passes (10/10 requests and assertions).
+- [ ] Confirm completion behavior with a multi-lesson course.
 - [ ] CI checks pass.
 - [ ] At least one approving review before merge.
 
 ## Branching
 
-Branch: `feat/issue-8-enrollment-api`
+Branch: `feat/issue-8-enrollment-api`  
 Base: `feat/issue-4-auth` (stacked on the authentication PR).

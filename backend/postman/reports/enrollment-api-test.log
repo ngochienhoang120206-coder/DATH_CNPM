@@ -1,0 +1,63 @@
+newman
+
+DATH Enrollment API acceptance tests (Issue #8)
+
+→ Unauthenticated enrollment list is rejected
+  GET http://localhost:5000/api/enrollments/me [401 Unauthorized, 1.11kB, 105ms]
+  ✓  enrollment list requires authentication
+
+→ Student login
+  POST http://localhost:5000/api/auth/login [200 OK, 1.61kB, 485ms]
+  ✓  student login succeeds
+
+→ Enroll in published course
+  POST http://localhost:5000/api/courses/4caa0810-89db-42a5-8951-3583de9a6d67/enroll [201 Created, 1.55kB, 67ms]
+  ✓  enrollment is created
+
+→ List my enrollments
+  GET http://localhost:5000/api/enrollments/me [200 OK, 2.43kB, 73ms]
+  ✓  my enrollments include the selected course
+
+→ List my courses grouped by status
+  GET http://localhost:5000/api/enrollments/my-courses [200 OK, 6.53kB, 23ms]
+  ✓  my courses response separates active and completed courses
+
+→ Update lesson progress
+  POST http://localhost:5000/api/lessons/73583c33-d646-4b39-bfd7-3010e185bdcf/progress [200 OK, 1.89kB, 79ms]
+  ✓  progress is saved and enrollment summary is returned
+
+→ Reject invalid playback position
+  POST http://localhost:5000/api/lessons/73583c33-d646-4b39-bfd7-3010e185bdcf/progress [400 Bad Request, 1.07kB, 11ms]
+  ✓  negative playback position is rejected
+
+→ Get resume lesson
+  GET http://localhost:5000/api/enrollments/resume?courseId=4caa0810-89db-42a5-8951-3583de9a6d67 [200 OK, 1.41kB, 16ms]
+  ✓  resume response points to the last lesson
+
+→ Leave course
+  DELETE http://localhost:5000/api/courses/4caa0810-89db-42a5-8951-3583de9a6d67/enroll [200 OK, 1.57kB, 19ms]
+  ✓  student can leave course
+
+→ Progress update is blocked after leaving
+  POST http://localhost:5000/api/lessons/73583c33-d646-4b39-bfd7-3010e185bdcf/progress [403 Forbidden, 1.09kB, 19ms]
+  ✓  non-enrolled student cannot update progress
+
+┌─────────────────────────┬────────────────────┬───────────────────┐
+│                         │           executed │            failed │
+├─────────────────────────┼────────────────────┼───────────────────┤
+│              iterations │                  1 │                 0 │
+├─────────────────────────┼────────────────────┼───────────────────┤
+│                requests │                 10 │                 0 │
+├─────────────────────────┼────────────────────┼───────────────────┤
+│            test-scripts │                 10 │                 0 │
+├─────────────────────────┼────────────────────┼───────────────────┤
+│      prerequest-scripts │                  0 │                 0 │
+├─────────────────────────┼────────────────────┼───────────────────┤
+│              assertions │                 10 │                 0 │
+├─────────────────────────┴────────────────────┴───────────────────┤
+│ total run duration: 1218ms                                       │
+├──────────────────────────────────────────────────────────────────┤
+│ total data received: 10.08kB (approx)                            │
+├──────────────────────────────────────────────────────────────────┤
+│ average response time: 89ms [min: 11ms, max: 485ms, s.d.: 135ms] │
+└──────────────────────────────────────────────────────────────────┘
