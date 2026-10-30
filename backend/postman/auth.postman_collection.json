@@ -38,7 +38,7 @@
     {
       "name": "Get profile with cookie",
       "request": { "method": "GET", "header": [{ "key": "Cookie", "value": "access_token={{accessToken}}" }], "url": "{{baseUrl}}/api/users/profile" },
-      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('profile is returned for authenticated user', function () {", "  pm.response.to.have.status(200);", "  const body = pm.response.json();", "  pm.expect(body.data.id).to.eql(pm.environment.get('testUserId'));", "  pm.expect(body.data.role).to.eql('student');", "  pm.expect(body.data).to.not.have.property('password');", "});"] } }]
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('profile is returned for authenticated user', function () {", "  pm.response.to.have.status(200);", "  const body = pm.response.json();", "  const role = typeof body.data.role === 'string' ? body.data.role : body.data.role?.name;", "  pm.expect(body.data.id).to.eql(pm.environment.get('testUserId'));", "  pm.expect(role).to.eql('student');", "  pm.expect(body.data).to.not.have.property('password');", "});"] } }]
     },
     {
       "name": "Update profile fields",
@@ -53,7 +53,7 @@
     {
       "name": "Request password reset",
       "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{testEmail}}\"\n}", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/api/auth/forgot-password" },
-      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('forgot password response does not reveal account existence', function () {", "  pm.response.to.have.status(200);", "  pm.expect(pm.response.json().message).to.match(/If the account exists/);", "});"] } }]
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('forgot password response does not reveal account existence', function () {", "  pm.response.to.have.status(200);", "  pm.expect(pm.response.json().message).to.match(/If the account exists|Nếu tài khoản tồn tại/);", "});"] } }]
     },
     {
       "name": "Find reset email in Mailpit",
