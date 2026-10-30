@@ -1,13 +1,11 @@
 import { statusCodes } from "./status-code.helper.js";
 
-export const responseSuccess = (data, message = "OK", statusCode = statusCodes.OK, meta = undefined) => {
+export const responseSuccess = (data, message = "OK", statusCode = statusCodes.OK) => {
     return {
-        success: true,
         status: "success",
         statusCode: statusCode,
         message: message,
         data: data,
-        ...(meta !== undefined && { meta, pagination: meta }),
         doc: "swagger.com",
     };
 };
