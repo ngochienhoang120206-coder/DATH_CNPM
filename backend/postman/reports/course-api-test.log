@@ -1,0 +1,83 @@
+newman
+
+DATH Course API acceptance tests (Issue #6)
+
+→ Instructor login
+  POST http://localhost:5000/api/auth/login [200 OK, 1.63kB, 532ms]
+  ✓  instructor login succeeds
+
+→ List published courses and pagination
+  GET http://localhost:5000/api/courses?page=1&limit=5 [200 OK, 2.05kB, 68ms]
+  ✓  course list returns paginated items
+
+→ Create a published course
+  POST http://localhost:5000/api/courses [201 Created, 1.55kB, 70ms]
+  ✓  course is created
+
+→ Update course
+  PUT http://localhost:5000/api/courses/d16f701d-d548-41fe-9db4-0bdfef028ae9 [200 OK, 1.54kB, 30ms]
+  ✓  course update is persisted
+
+→ Create chapter
+  POST http://localhost:5000/api/courses/d16f701d-d548-41fe-9db4-0bdfef028ae9/chapters [201 Created, 1.36kB, 21ms]
+  ✓  chapter is created
+
+→ Update chapter
+  PUT http://localhost:5000/api/chapters/8311d2c5-9a25-4851-9748-dedb08c6d10f [200 OK, 1.36kB, 26ms]
+  ✓  chapter update is persisted
+
+→ Create lesson
+  POST http://localhost:5000/api/chapters/8311d2c5-9a25-4851-9748-dedb08c6d10f/lessons [201 Created, 1.36kB, 21ms]
+  ✓  lesson is created
+
+→ Update lesson
+  PUT http://localhost:5000/api/lessons/ae8b3c5c-f128-4ffa-995e-2564cddfd1ec [200 OK, 1.36kB, 29ms]
+  ✓  lesson update is persisted
+
+→ Create text material
+  POST http://localhost:5000/api/lessons/ae8b3c5c-f128-4ffa-995e-2564cddfd1ec/materials [201 Created, 1.44kB, 29ms]
+  ✓  text material is created
+
+→ Update material
+  PUT http://localhost:5000/api/materials/5f8aa2ac-a2cc-4073-97c8-07746d033d36 [200 OK, 1.45kB, 29ms]
+  ✓  material update is persisted
+
+→ Course detail contains created content
+  GET http://localhost:5000/api/courses/d16f701d-d548-41fe-9db4-0bdfef028ae9 [200 OK, 2.62kB, 40ms]
+  ✓  owner sees nested lessons and materials
+
+→ Delete material
+  DELETE http://localhost:5000/api/materials/5f8aa2ac-a2cc-4073-97c8-07746d033d36 [200 OK, 1.1kB, 30ms]
+  ✓  material is soft-deleted
+
+→ Delete lesson
+  DELETE http://localhost:5000/api/lessons/ae8b3c5c-f128-4ffa-995e-2564cddfd1ec [200 OK, 1.1kB, 52ms]
+  ✓  lesson is soft-deleted
+
+→ Delete chapter
+  DELETE http://localhost:5000/api/chapters/8311d2c5-9a25-4851-9748-dedb08c6d10f [200 OK, 1.1kB, 91ms]
+  ✓  chapter is soft-deleted
+
+→ Delete course
+  DELETE http://localhost:5000/api/courses/d16f701d-d548-41fe-9db4-0bdfef028ae9 [200 OK, 1.1kB, 39ms]
+  ✓  course and descendants are soft-deleted
+
+┌─────────────────────────┬────────────────────┬───────────────────┐
+│                         │           executed │            failed │
+├─────────────────────────┼────────────────────┼───────────────────┤
+│              iterations │                  1 │                 0 │
+├─────────────────────────┼────────────────────┼───────────────────┤
+│                requests │                 15 │                 0 │
+├─────────────────────────┼────────────────────┼───────────────────┤
+│            test-scripts │                 15 │                 0 │
+├─────────────────────────┼────────────────────┼───────────────────┤
+│      prerequest-scripts │                  1 │                 0 │
+├─────────────────────────┼────────────────────┼───────────────────┤
+│              assertions │                 15 │                 0 │
+├─────────────────────────┴────────────────────┴───────────────────┤
+│ total run duration: 1570ms                                       │
+├──────────────────────────────────────────────────────────────────┤
+│ total data received: 7.11kB (approx)                             │
+├──────────────────────────────────────────────────────────────────┤
+│ average response time: 73ms [min: 21ms, max: 532ms, s.d.: 124ms] │
+└──────────────────────────────────────────────────────────────────┘
