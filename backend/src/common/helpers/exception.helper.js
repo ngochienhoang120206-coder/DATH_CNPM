@@ -27,6 +27,15 @@ export class ForbiddenException extends Error {
   }
 }
 
+export class NotFoundException extends Error {
+  code = statusCodes.NOT_FOUND;
+  name = "NotFoundException";
+
+  constructor(message = "NotFoundException") {
+    super(message);
+  }
+}
+
 export class ServiceUnavailableException extends Error {
   code = statusCodes.SERVICE_UNAVAILABLE;
   name = "ServiceUnavailableException";
