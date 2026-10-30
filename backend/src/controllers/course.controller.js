@@ -1,88 +1,86 @@
-const prisma = require('../config/db');
+const courseService = require('../services/course.service');
 
-exports.getCourses = async (req, res) => {
- try {
-  const page = Math.max(1, parseInt(req.query.page) || 1);
-  const limit = Math.max(1, parseInt(req.query.limit) || 10);
-  const search = req.query.search || '';
-  const categoryId = req.query.categoryId || undefined;
+exports.listCategories = async (req, res) => {
+  try {
+    const data = await courseService.listCategories();
+    return res.json({ success: true, data });
+  } catch (err) {
+    return res.status(err.statusCode || 500).json({ success: false, message: err.message });
+  }
+};
 
-  const where = {
-   isDeleted: false,
-   is_published: true,
-   ...(categoryId && { category_id: categoryId }),
-   ...(search && { title: { contains: search, mode: 'insensitive' } })
-  };
-
-  const [total, courses] = await Promise.all([
-   prisma.courses.count({ where }),
-   prisma.courses.findMany({
-    where,
-    skip: (page - 1) * limit,
-    take: limit,
-    include: {
-     instructor: { select: { id: true, full_name: true } },
-     category: { select: { id: true, name: true, slug: true } }
-    },
-    orderBy: { createdAt: 'desc' }
-   })
-  ]);
-
-  return res.json({
-   success: true,
-   data: courses,
-   meta: { page, limit, total, totalPages: Math.ceil(total / limit) }
-  });
- } catch (err) {
-  return res.status(500).json({ success: false, message: err.message });
- }
+exports.listCourses = async (req, res) => {
+  try {
+    const result = await courseService.listCourses(req.query);
+    return res.json({
+      success: true,
+      data: result.items,
+      pagination: result.pagination
+    });
+  } catch (err) {
+    return res.status(err.statusCode || 500).json({ success: false, message: err.message });
+  }
 };
 
 exports.getCourseById = async (req, res) => {
- try {
-  const course = await prisma.courses.findFirst({
-   where: { id: req.params.id, isDeleted: false },
-   include: {
-    instructor: { select: { id: true, full_name: true, bio: true } },
-    chapters: {
-     where: { isDeleted: false },
-     orderBy: { position: 'asc' },
-     include: {
-      lessons: {
-       where: { isDeleted: false },
-       orderBy: { position: 'asc' },
-       include: {
-        materials: { where: { isDeleted: false }, orderBy: { position: 'asc' } }
-       }
-      }
-     }
-    }
-   }
-  });
-  if (!course) return res.status(404).json({ success: false, message: 'Course not found' });
-  return res.json({ success: true, data: course });
- } catch (err) {
-  return res.status(500).json({ success: false, message: err.message });
- }
+  try {
+    const data = await courseService.getCourseById(req.params.id);
+    return res.json({ success: true, data });
+  } catch (err) {
+    return res.status(err.statusCode || 404).json({ success: false, message: err.message });
+  }
 };
 
 exports.createCourse = async (req, res) => {
- try {
-  const { title, description, prerequisites, categoryId, thumbnailUrl, isPublished = false } = req.body;
-  const course = await prisma.courses.create({
-   data: {
-    title,
-    description,
-    prerequisites,
-    category_id: categoryId || null,
-    thumbnail_url: thumbnailUrl || null,
-    is_published: isPublished,
-    published_at: isPublished ? new Date() : null,
-    instructor_id: req.user.id
-   }
-  });
-  return res.status(201).json({ success: true, data: course });
- } catch (err) {
-  return res.status(400).json({ success: false, message: err.message });
- }
+  try {
+    const data = await courseService.createCourse(req.user, req.body);
+    return res.status(201).json({ success: true, message: 'Course created successfully', data });
+  } catch (err) {
+    return res.status(err.statusCode || 400).json({ success: false, message: err.message });
+  }
+};
+
+exports.updateCourse = async (req, res) => {
+  try {
+    const data = await courseService.updateCourse(req.params.id, req.user, req.body);
+    return res.json({ success: true, message: 'Course updated successfully', data });
+  } catch (err) {
+    return res.status(err.statusCode || 400).json({ success: false, message: err.message });
+  }
+};
+
+exports.deleteCourse = async (req, res) => {
+  try {
+    await courseService.softDeleteCourse(req.params.id, req.user);
+    return res.json({ success: true, message: 'Course soft-deleted successfully' });
+  } catch (err) {
+    return res.status(err.statusCode || 400).json({ success: false, message: err.message });
+  }
+};
+
+exports.createChapter = async (req, res) => {
+  try {
+    const data = await courseService.createChapter(req.params.courseId, req.user, req.body);
+    return res.status(201).json({ success: true, message: 'Chapter created successfully', data });
+  } catch (err) {
+    return res.status(err.statusCode || 400).json({ success: false, message: err.message });
+  }
+};
+
+exports.createLesson = async (req, res) => {
+  try {
+    const data = await courseService.createLesson(req.params.chapterId, req.user, req.body);
+    return res.status(201).json({ success: true, message: 'Lesson created successfully', data });
+  } catch (err) {
+    return res.status(err.statusCode || 400).json({ success: false, message: err.message });
+  }
+};
+
+exports.createMaterial = async (req, res) => {
+  try {
+    const data = await courseService.createMaterial(req.params.lessonId, req.user, req.body);
+    return res.status(201).json({ success: true, message: 'Material created successfully', data });
+  } catch (err) {
+    return res.status(err.statusCode || 400).json({ success: false, message: err.message });
+  }
 };
