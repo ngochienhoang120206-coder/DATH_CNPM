@@ -33,7 +33,7 @@
     {
       "name": "Update lesson progress",
       "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"is_completed\": true, \"last_position_seconds\": 45 }", "options": { "raw": { "language": "json" } } }, "url": "{{baseUrl}}/api/lessons/{{lessonId}}/progress" },
-      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('progress is saved and enrollment summary is returned', function () { const data = pm.response.json().data; pm.response.to.have.status(200); pm.expect(data.is_completed).to.eql(true); pm.expect(data.enrollment.last_lesson_id).to.eql(pm.environment.get('lessonId')); pm.expect(data.enrollment.progress_percent).to.be.a('number'); });"] } }]
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('progress is saved and enrollment summary is returned', function () { const data = pm.response.json().data; pm.response.to.have.status(200); pm.expect(data.is_completed).to.eql(true); pm.expect(data.enrollment.last_lesson_id).to.eql(pm.environment.get('lessonId')); pm.expect(Number(data.enrollment.progress_percent)).to.be.within(0, 100); });"] } }]
     },
     {
       "name": "Reject invalid playback position",
