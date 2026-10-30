@@ -1,69 +1,40 @@
-const prisma = require('../config/db');
+const enrollmentService = require('../services/enrollment.service');
 
-exports.enrollCourse = async (req, res) => {
- try {
-  const course_id = req.params.id;
-  const user_id = req.user.id;
-
-  const enrollment = await prisma.enrollments.upsert({
-   where: { user_id_course_id: { user_id, course_id } },
-   update: { status: 'enrolled', isDeleted: false, left_at: null },
-   create: { user_id, course_id, status: 'enrolled' }
-  });
-
-  return res.status(201).json({ success: true, data: enrollment });
- } catch (err) {
-  return res.status(400).json({ success: false, message: err.message });
- }
-};
-
-exports.leaveCourse = async (req, res) => {
- try {
-  const updated = await prisma.enrollments.update({
-   where: { user_id_course_id: { user_id: req.user.id, course_id: req.params.id } },
-   data: { status: 'left', left_at: new Date() }
-  });
-  return res.json({ success: true, data: updated });
- } catch (err) {
-  return res.status(400).json({ success: false, message: err.message });
- }
-};
-
-exports.updateLessonProgress = async (req, res) => {
- try {
-  const lesson_id = req.params.lessonId;
-  const { courseId, isCompleted = true, lastPositionSeconds = 0 } = req.body;
-
-  const enrollment = await prisma.enrollments.findFirst({
-   where: { user_id: req.user.id, course_id: courseId, status: 'enrolled', isDeleted: false }
-  });
-  if (!enrollment) {
-   return res.status(403).json({ success: false, message: 'User is not enrolled in this course' });
+exports.enroll = async (req, res) => {
+  try {
+    const courseId = req.params.courseId || req.body.courseId;
+    const data = await enrollmentService.enrollCourse(req.user.id, courseId);
+    return res.status(201).json({ success: true, message: 'Enrolled successfully', data });
+  } catch (err) {
+    return res.status(err.statusCode || 400).json({ success: false, message: err.message });
   }
+};
 
-  const progressRecord = await prisma.progress.upsert({
-   where: { enrollment_id_lesson_id: { enrollment_id: enrollment.id, lesson_id } },
-   update: {
-    is_completed: isCompleted,
-    last_position_seconds: lastPositionSeconds,
-    completed_at: isCompleted ? new Date() : null
-   },
-   create: {
-    enrollment_id: enrollment.id,
-    lesson_id,
-    is_completed: isCompleted,
-    last_position_seconds: lastPositionSeconds,
-    completed_at: isCompleted ? new Date() : null
-   }
-  });
+exports.leave = async (req, res) => {
+  try {
+    const courseId = req.params.courseId || req.body.courseId;
+    const data = await enrollmentService.leaveCourse(req.user.id, courseId);
+    return res.json({ success: true, message: 'Left course successfully', data });
+  } catch (err) {
+    return res.status(err.statusCode || 400).json({ success: false, message: err.message });
+  }
+};
 
-  await prisma.enrollments.update({
-   where: { id: enrollment.id },
-   data: { last_lesson_id: lesson_id }
-  });
+exports.getMyEnrollments = async (req, res) => {
+  try {
+    const data = await enrollmentService.getMyEnrollments(req.user.id);
+    return res.json({ success: true, data });
+  } catch (err) {
+    return res.status(err.statusCode || 500).json({ success: false, message: err.message });
+  }
+};
 
-  return res.json({ success: true, data: progressRecord });
- } catch (err) {
-  return res.status(400).json({ success: false, message: err.message });
- }
+exports.updateProgress = async (req, res) => {
+  try {
+    const lessonId = req.params.lessonId || req.body.lessonId;
+    const data = await enrollmentService.updateLessonProgress(req.user.id, lessonId, req.body);
+    return res.json({ success: true, message: 'Progress updated successfully', data });
+  } catch (err) {
+    return res.status(err.statusCode || 400).json({ success: false, message: err.message });
+  }
 };
