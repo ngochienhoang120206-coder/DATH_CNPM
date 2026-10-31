@@ -3,6 +3,20 @@
 ## 1. Project Overview
 A web-based Learning Management System (LMS) designed for IT education that integrates structured course management with a real-time collaborative classroom (shared Fabric.js whiteboard and Yjs CRDT-based Monaco code editor) for live pair programming and instructor guidance.
 
+## Production Deployment URLs
+- **Frontend Application (Vercel):** https://dath-cnpm-frontend.vercel.app
+- **Backend API Server (Render):** https://dath-cnpm-ru1s.onrender.com
+- **API Health Check:** https://dath-cnpm-ru1s.onrender.com/health
+
+## Demo Accounts (Seeded on Production DB)
+All demo accounts use the default password: `Demo@12345`
+
+| Role | Email | Full Name |
+| :--- | :--- | :--- |
+| **Admin** | `admin@demo.edu.vn` | System Administrator |
+| **Instructor** | `instructor@demo.edu.vn` | Dr. Phat Tran |
+| **Student** | `learner@demo.edu.vn` | Hoang Ngoc Hien |
+
 ### Group 14 Members
 | Full Name | Student ID | Role & Responsibilities |
 | :--- | :--- | :--- |
@@ -88,17 +102,7 @@ cd backend && npm test
 cd frontend && npx playwright test
 ```
 
-## 5. Deployed Prototype & Demo Accounts
-- **Production Frontend URL:** [Insert Vercel URL](http://dath-cnpm-frontend.vercel.app/)
-- **Production Backend API URL:** [Insert Railway/Render URL](https://dath-cnpm-ru1s.onrender.com/)
-
-| Role | Email | Password |
-| :--- | :--- | :--- |
-| Learner | learner@demo.edu.vn | Demo@12345 |
-| Instructor | instructor@demo.edu.vn | Demo@12345 |
-| Administrator | admin@demo.edu.vn | Demo@12345 |
-
-## 6. Team Git Workflow
+## 5. Team Git Workflow
 
 ### 1. Switch to "main" and pull the latest code:
 ```bash
@@ -125,7 +129,7 @@ git push origin feature/issue-<number>-<short-description>
 - Click **Compare & pull request** on GitHub to open one PR for the entire feature branch.
 - Complete the PR checklist and write Closes #<issue-number> once in the PR description body to automatically move the Issue to Done on the Kanban board when merged.
 
-## 7. Third-Party Services & AI Disclosure
+## 6. Third-Party Services & AI Disclosure
 
 ### Third-Party Services: 
 Cloud deployment relies on Vercel, Railway/Render, Supabase (PostgreSQL & Object Storage for assignment submissions), and Redis Cloud. Video lectures and external documents are embedded via YouTube and Google Drive iframes.
