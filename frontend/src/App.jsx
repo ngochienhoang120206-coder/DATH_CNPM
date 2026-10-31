@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import AuthPage from './pages/auth/AuthPage';
 import CourseCatalogPage from './pages/courses/CourseCatalogPage';
+import CourseDetailPage from './pages/courses/CourseDetailPage';
 import InstructorDashboardPage from './pages/courses/InstructorDashboardPage';
 import LearningWorkspacePage from './pages/workspace/LearningWorkspacePage';
 import AuthScreens from './pages/auth/AuthScreens';
@@ -14,6 +15,8 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<CourseCatalogPage />} />
+        <Route path="/courses/:courseId" element={<CourseDetailPage />} />
+        <Route path="/room/:courseId" element={<RoomLayout />} />
         <Route path="/login" element={<AuthPage />} />
         <Route path="/register" element={<AuthScreens key="register" mode="register" />} />
         <Route path="/forgot-password" element={<AuthScreens key="forgot" mode="forgot" />} />
