@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import Editor from '@monaco-editor/react';
 import * as Y from 'yjs';
 import { MonacoBinding } from 'y-monaco';
@@ -9,6 +9,9 @@ const LANGUAGE_FILES = {
   python: 'solution.py'
 };
 
+const DEFAULT_CODE =
+  '#include <iostream>\n\nint main() {\n    std::cout << "Hello World!" << std::endl;\n    return 0;\n}';
+
 export default function CollaborativeCodeEditor({ socket, sessionId, onCodeChange }) {
   const [language, setLanguage] = useState('cpp');
   const editorRef = useRef(null);
@@ -16,11 +19,32 @@ export default function CollaborativeCodeEditor({ socket, sessionId, onCodeChang
   const bindingRef = useRef(null);
   const socketRef = useRef(socket);
   const sessionIdRef = useRef(sessionId);
+  const pendingSyncRef = useRef(null);
 
   useEffect(() => {
     socketRef.current = socket;
     sessionIdRef.current = sessionId;
   }, [socket, sessionId]);
+
+  const applyRemoteYjs = useCallback((rawUpdate) => {
+    if (!rawUpdate) return;
+    if (!ydocRef.current) {
+      pendingSyncRef.current = rawUpdate;
+      return;
+    }
+    try {
+      const arr =
+        typeof rawUpdate === 'string'
+          ? JSON.parse(rawUpdate)
+          : Array.isArray(rawUpdate)
+          ? rawUpdate
+          : Object.values(rawUpdate);
+      const uint8 = new Uint8Array(arr);
+      Y.applyUpdate(ydocRef.current, uint8, 'remote');
+    } catch (err) {
+      console.error('Failed to apply Yjs update:', err);
+    }
+  }, []);
 
   const handleEditorDidMount = (editor) => {
     editorRef.current = editor;
@@ -28,12 +52,16 @@ export default function CollaborativeCodeEditor({ socket, sessionId, onCodeChang
     ydocRef.current = ydoc;
     const ytext = ydoc.getText('monaco');
 
-    if (ytext.length === 0) {
-      ytext.insert(0, '#include <iostream>\n\nint main() {\n    std::cout << "Hello World!" << std::endl;\n    return 0;\n}');
+    bindingRef.current = new MonacoBinding(ytext, editor.getModel(), new Set([editor]));
+
+    if (pendingSyncRef.current) {
+      applyRemoteYjs(pendingSyncRef.current);
+      pendingSyncRef.current = null;
+    } else if (ytext.length === 0) {
+      editor.setValue(DEFAULT_CODE);
     }
 
-    bindingRef.current = new MonacoBinding(ytext, editor.getModel(), new Set([editor]));
-    onCodeChange?.(ytext.toString());
+    onCodeChange?.(editor.getValue());
 
     ydoc.on('update', (_update, origin) => {
       onCodeChange?.(ytext.toString());
@@ -49,7 +77,6 @@ export default function CollaborativeCodeEditor({ socket, sessionId, onCodeChang
     editor.onDidChangeCursorPosition((e) => {
       socketRef.current?.emit('code:awareness', {
         sessionId: sessionIdRef.current,
-        userId: socketRef.current.id,
         cursor: {
           lineNumber: e.position.lineNumber,
           column: e.position.column
@@ -61,19 +88,17 @@ export default function CollaborativeCodeEditor({ socket, sessionId, onCodeChang
   useEffect(() => {
     if (!socket) return;
 
-    const applyRemoteYjs = (rawUpdate) => {
-      if (!ydocRef.current || !rawUpdate) return;
-      const uint8 = Array.isArray(rawUpdate)
-        ? new Uint8Array(rawUpdate)
-        : typeof rawUpdate === 'string'
-        ? new Uint8Array(JSON.parse(rawUpdate))
-        : new Uint8Array(Object.values(rawUpdate));
-      Y.applyUpdate(ydocRef.current, uint8, 'remote');
-    };
-
     const handleYjsUpdate = ({ update }) => applyRemoteYjs(update);
     const handleStateSync = ({ yjsState }) => {
-      if (yjsState) applyRemoteYjs(yjsState);
+      if (yjsState) {
+        if (ydocRef.current) {
+          const ytext = ydocRef.current.getText('monaco');
+          if (ytext.toString() === DEFAULT_CODE) {
+            ytext.delete(0, ytext.length);
+          }
+        }
+        applyRemoteYjs(yjsState);
+      }
     };
 
     socket.on('code:yjs-update', handleYjsUpdate);
@@ -83,7 +108,7 @@ export default function CollaborativeCodeEditor({ socket, sessionId, onCodeChang
       socket.off('code:yjs-update', handleYjsUpdate);
       socket.off('room:state-sync', handleStateSync);
     };
-  }, [socket]);
+  }, [socket, applyRemoteYjs]);
 
   useEffect(() => {
     return () => {

@@ -44,11 +44,24 @@ export default function RoomLayout({ courseId: propCourseId, sessionId: propSess
           setIsConnected(false);
         });
 
+        s.on('room:participants', (list) => {
+          if (Array.isArray(list)) setParticipants(list);
+        });
+
         s.on('room:user-joined', (user) => {
+          if (!user?.id) return;
           setParticipants((prev) => {
             if (prev.some((p) => p.id === user.id)) return prev;
             return [...prev, user];
           });
+        });
+
+        s.on('room:state-sync', ({ notes }) => {
+          if (typeof notes === 'string') setNotesSnapshot(notes);
+        });
+
+        s.on('notes:update', ({ notes }) => {
+          if (typeof notes === 'string') setNotesSnapshot(notes);
         });
 
         s.on('code:awareness', (data) => {
@@ -68,6 +81,12 @@ export default function RoomLayout({ courseId: propCourseId, sessionId: propSess
       activeSocket?.disconnect();
     };
   }, [sessionId, courseId]);
+
+  const handleNotesChange = (e) => {
+    const val = e.target.value;
+    setNotesSnapshot(val);
+    socket?.emit('notes:update', { sessionId, notes: val });
+  };
 
   const handleMouseDown = () => {
     setIsDragging(true);
@@ -180,7 +199,7 @@ export default function RoomLayout({ courseId: propCourseId, sessionId: propSess
               </div>
               <textarea
                 value={notesSnapshot}
-                onChange={(e) => setNotesSnapshot(e.target.value)}
+                onChange={handleNotesChange}
                 placeholder="Write collaborative session notes, algorithm explanations, or review feedback here..."
                 className="flex-1 w-full bg-[#161a23] text-gray-200 p-3 text-xs outline-none resize-none"
               />
