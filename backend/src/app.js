@@ -4,15 +4,25 @@ const cookieParser = require('cookie-parser');
 
 const app = express();
 
+const normalizeOrigin = (url) => (url ? url.trim().replace(/\/+$/, '') : '');
+
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5173',
-  process.env.CLIENT_URL,
-  process.env.FRONTEND_URL
+  'https://dath-cnpm-frontend.vercel.app',
+  normalizeOrigin(process.env.CLIENT_URL),
+  normalizeOrigin(process.env.FRONTEND_URL)
 ].filter(Boolean);
 
 app.use(cors({
-  origin: allowedOrigins,
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    const cleanOrigin = normalizeOrigin(origin);
+    if (allowedOrigins.includes(cleanOrigin) || cleanOrigin.endsWith('.vercel.app')) {
+      return callback(null, true);
+    }
+    return callback(null, true);
+  },
   credentials: true
 }));
 

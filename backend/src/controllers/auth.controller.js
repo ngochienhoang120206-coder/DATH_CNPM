@@ -27,8 +27,12 @@ exports.login = async (req, res) => {
 };
 
 exports.logout = (req, res) => {
-  res.clearCookie('access_token', COOKIE_OPTIONS);
-  return res.json({ success: true, message: 'Logged out successfully' });
+  res.clearCookie('access_token', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax'
+  });
+  return res.status(200).json({ success: true, message: 'Logged out successfully' });
 };
 
 exports.getProfile = async (req, res) => {

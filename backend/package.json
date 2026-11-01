@@ -8,7 +8,7 @@
     "postinstall": "npx prisma generate",
     "start": "npx prisma generate && node src/server.js",
     "dev": "nodemon src/server.js",
-    "seed": "node prisma/seed.js",
+    "seed": "node -r dotenv/config prisma/seed.js",
     "test": "jest --runInBand"
   },
   "dependencies": {
@@ -16,7 +16,7 @@
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
+    "dotenv": "^16.6.1",
     "express": "^4.21.0",
     "express-rate-limit": "^7.4.0",
     "ioredis": "^5.4.1",
