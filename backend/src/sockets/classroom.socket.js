@@ -23,20 +23,40 @@ module.exports = function initClassroomSocket(io) {
     }
   });
 
+  const broadcastParticipants = async (sessionId) => {
+    const sockets = await io.in(sessionId).fetchSockets();
+    const map = new Map();
+    sockets.forEach((s) => {
+      if (s.user?.id) {
+        map.set(s.user.id, {
+          id: s.user.id,
+          fullName: s.user.fullName || s.user.full_name || s.user.email,
+          role: s.user.role
+        });
+      }
+    });
+    io.to(sessionId).emit('room:participants', Array.from(map.values()));
+  };
+
   io.on('connection', (socket) => {
-    socket.on('room:join', async ({ sessionId, courseId }) => {
+    socket.on('room:join', async ({ sessionId }) => {
       try {
-        socket.join(sessionId);
-        const strokes = await redis.lrange(`room:${sessionId}:whiteboard`, 0, -1);
-        const yjsState = await redis.get(`room:${sessionId}:yjs`);
+        socket.sessionId = sessionId;
+        await socket.join(sessionId);
+
+        const [strokes, rawYjs, notes] = await Promise.all([
+          redis.lrange(`room:${sessionId}:whiteboard`, 0, -1),
+          redis.get(`room:${sessionId}:yjs`),
+          redis.get(`room:${sessionId}:notes`)
+        ]);
 
         socket.emit('room:state-sync', {
           whiteboard: strokes.map((s) => JSON.parse(s)),
-          yjsState: yjsState || null
+          yjsState: rawYjs ? JSON.parse(rawYjs) : null,
+          notes: notes || ''
         });
 
-        socket.emit('room:user-joined', socket.user);
-        socket.to(sessionId).emit('room:user-joined', socket.user);
+        await broadcastParticipants(sessionId);
       } catch (err) {
         console.error('room:join error:', err.message);
       }
@@ -62,15 +82,29 @@ module.exports = function initClassroomSocket(io) {
 
     socket.on('code:yjs-update', async ({ sessionId, update }) => {
       try {
-        await redis.set(`room:${sessionId}:yjs`, update);
         socket.to(sessionId).emit('code:yjs-update', { update });
+        await redis.set(`room:${sessionId}:yjs`, JSON.stringify(update));
       } catch (err) {
         console.error('code:yjs-update error:', err.message);
       }
     });
 
-    socket.on('code:awareness', ({ sessionId, ...awarenessData }) => {
-      socket.to(sessionId).emit('code:awareness', awarenessData);
+    socket.on('code:awareness', ({ sessionId, cursor }) => {
+      if (!socket.user) return;
+      io.to(sessionId).emit('code:awareness', {
+        userId: socket.user.id,
+        fullName: socket.user.fullName || socket.user.full_name || socket.user.email,
+        cursor
+      });
+    });
+
+    socket.on('notes:update', async ({ sessionId, notes }) => {
+      try {
+        socket.to(sessionId).emit('notes:update', { notes });
+        await redis.set(`room:${sessionId}:notes`, notes || '');
+      } catch (err) {
+        console.error('notes:update error:', err.message);
+      }
     });
 
     socket.on('room:end-session', async ({ sessionId, codeSnapshot, notesSnapshot }) => {
@@ -87,6 +121,12 @@ module.exports = function initClassroomSocket(io) {
         });
       } catch (err) {
         console.error('room:end-session error:', err.message);
+      }
+    });
+
+    socket.on('disconnect', () => {
+      if (socket.sessionId) {
+        broadcastParticipants(socket.sessionId).catch(() => {});
       }
     });
   });
