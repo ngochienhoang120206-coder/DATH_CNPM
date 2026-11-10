@@ -20,31 +20,59 @@ export default function CollaborativeCodeEditor({ socket, sessionId, onCodeChang
   const socketRef = useRef(socket);
   const sessionIdRef = useRef(sessionId);
   const pendingSyncRef = useRef(null);
+  const hasDirtyOfflineEditsRef = useRef(false);
 
   useEffect(() => {
     socketRef.current = socket;
     sessionIdRef.current = sessionId;
   }, [socket, sessionId]);
 
-  const applyRemoteYjs = useCallback((rawUpdate) => {
-    if (!rawUpdate) return;
-    if (!ydocRef.current) {
-      pendingSyncRef.current = rawUpdate;
-      return;
-    }
-    try {
-      const arr =
-        typeof rawUpdate === 'string'
-          ? JSON.parse(rawUpdate)
-          : Array.isArray(rawUpdate)
-          ? rawUpdate
-          : Object.values(rawUpdate);
-      const uint8 = new Uint8Array(arr);
-      Y.applyUpdate(ydocRef.current, uint8, 'remote');
-    } catch (err) {
-      console.error('Failed to apply Yjs update:', err);
-    }
-  }, []);
+  const applyRemoteYjs = useCallback(
+    (rawUpdate, isFullStateSync = false) => {
+      if (!rawUpdate) return;
+      if (!ydocRef.current) {
+        pendingSyncRef.current = rawUpdate;
+        return;
+      }
+      try {
+        const arr =
+          typeof rawUpdate === 'string'
+            ? JSON.parse(rawUpdate)
+            : Array.isArray(rawUpdate)
+            ? rawUpdate
+            : Object.values(rawUpdate);
+        const uint8 = new Uint8Array(arr);
+
+        const ytext = ydocRef.current.getText('monaco');
+        if (isFullStateSync && !hasDirtyOfflineEditsRef.current && ytext.toString() === DEFAULT_CODE) {
+          ydocRef.current.transact(() => {
+            ytext.delete(0, ytext.length);
+          }, 'remote');
+        }
+
+        Y.applyUpdate(ydocRef.current, uint8, 'remote');
+        onCodeChange?.(ytext.toString());
+
+        // If user typed while offline, push merged CRDT state back to server after state-sync
+        if (
+          isFullStateSync &&
+          hasDirtyOfflineEditsRef.current &&
+          socketRef.current?.connected
+        ) {
+          hasDirtyOfflineEditsRef.current = false;
+          const mergedState = Y.encodeStateAsUpdate(ydocRef.current);
+          socketRef.current.emit('code:yjs-update', {
+            sessionId: sessionIdRef.current,
+            update: Array.from(mergedState),
+            codeSnapshot: ytext.toString()
+          });
+        }
+      } catch (err) {
+        console.error('Failed to apply Yjs update:', err);
+      }
+    },
+    [onCodeChange]
+  );
 
   const handleEditorDidMount = (editor) => {
     editorRef.current = editor;
@@ -55,49 +83,63 @@ export default function CollaborativeCodeEditor({ socket, sessionId, onCodeChang
     bindingRef.current = new MonacoBinding(ytext, editor.getModel(), new Set([editor]));
 
     if (pendingSyncRef.current) {
-      applyRemoteYjs(pendingSyncRef.current);
+      applyRemoteYjs(pendingSyncRef.current, true);
       pendingSyncRef.current = null;
     } else if (ytext.length === 0) {
-      editor.setValue(DEFAULT_CODE);
+      ydoc.transact(() => {
+        ytext.insert(0, DEFAULT_CODE);
+      }, 'remote');
     }
 
-    onCodeChange?.(editor.getValue());
+    onCodeChange?.(ytext.toString());
 
     ydoc.on('update', (_update, origin) => {
-      onCodeChange?.(ytext.toString());
-      if (origin !== 'remote' && socketRef.current) {
+      const currentCode = ytext.toString();
+      onCodeChange?.(currentCode);
+
+      if (origin !== 'remote') {
         const fullState = Y.encodeStateAsUpdate(ydoc);
-        socketRef.current.emit('code:yjs-update', {
-          sessionId: sessionIdRef.current,
-          update: Array.from(fullState)
-        });
+        if (socketRef.current && socketRef.current.connected && navigator.onLine !== false) {
+          hasDirtyOfflineEditsRef.current = false;
+          socketRef.current.emit('code:yjs-update', {
+            sessionId: sessionIdRef.current,
+            update: Array.from(fullState),
+            codeSnapshot: currentCode
+          });
+        } else {
+          hasDirtyOfflineEditsRef.current = true;
+        }
       }
     });
 
     editor.onDidChangeCursorPosition((e) => {
-      socketRef.current?.emit('code:awareness', {
-        sessionId: sessionIdRef.current,
-        cursor: {
-          lineNumber: e.position.lineNumber,
-          column: e.position.column
-        }
-      });
+      if (socketRef.current?.connected) {
+        socketRef.current.emit('code:awareness', {
+          sessionId: sessionIdRef.current,
+          cursor: {
+            lineNumber: e.position.lineNumber,
+            column: e.position.column
+          }
+        });
+      }
     });
   };
 
   useEffect(() => {
-    if (!socket) return;
+    if (!socket) return undefined;
 
-    const handleYjsUpdate = ({ update }) => applyRemoteYjs(update);
+    const handleYjsUpdate = ({ update }) => applyRemoteYjs(update, false);
     const handleStateSync = ({ yjsState }) => {
       if (yjsState) {
-        if (ydocRef.current) {
-          const ytext = ydocRef.current.getText('monaco');
-          if (ytext.toString() === DEFAULT_CODE) {
-            ytext.delete(0, ytext.length);
-          }
-        }
-        applyRemoteYjs(yjsState);
+        applyRemoteYjs(yjsState, true);
+      } else if (hasDirtyOfflineEditsRef.current && ydocRef.current && socket.connected) {
+        hasDirtyOfflineEditsRef.current = false;
+        const fullState = Y.encodeStateAsUpdate(ydocRef.current);
+        socket.emit('code:yjs-update', {
+          sessionId: sessionIdRef.current,
+          update: Array.from(fullState),
+          codeSnapshot: ydocRef.current.getText('monaco').toString()
+        });
       }
     };
 

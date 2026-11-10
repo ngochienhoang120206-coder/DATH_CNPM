@@ -1,293 +1,221 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { fabric } from 'fabric';
+import * as fabricNamespace from 'fabric';
+
+const fabric = fabricNamespace.fabric || fabricNamespace;
+
+const COLORS = ['#1e293b', '#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'];
+
+const getObjectSignature = (obj) => {
+  if (!obj) return '';
+  try {
+    const raw = typeof obj.toObject === 'function' ? obj.toObject() : obj;
+    return JSON.stringify({
+      type: raw.type,
+      left: Math.round(Number(raw.left) || 0),
+      top: Math.round(Number(raw.top) || 0),
+      width: Math.round(Number(raw.width) || 0),
+      height: Math.round(Number(raw.height) || 0),
+      radius: Math.round(Number(raw.radius) || 0),
+      stroke: raw.stroke,
+      fill: raw.fill,
+      text: raw.text || null,
+      path: Array.isArray(raw.path) ? raw.path.length : null
+    });
+  } catch (_e) {
+    return '';
+  }
+};
 
 export default function CollaborativeWhiteboard({ socket, sessionId }) {
-  const wrapperRef = useRef(null);
-  const canvasRef = useRef(null);
+  const containerRef = useRef(null);
+  const canvasElRef = useRef(null);
   const fabricRef = useRef(null);
   const socketRef = useRef(socket);
   const sessionIdRef = useRef(sessionId);
+  const isApplyingRemoteRef = useRef(false);
+  const renderedSignaturesRef = useRef(new Set());
+  const offlineStrokeQueueRef = useRef([]);
 
   const [activeTool, setActiveTool] = useState('pen');
-  const [color, setColor] = useState('#000000');
-  const [zoomLevel, setZoomLevel] = useState(1);
-
-  const activeToolRef = useRef(activeTool);
-  const colorRef = useRef(color);
-  const isDrawingShape = useRef(false);
-  const originPos = useRef({ x: 0, y: 0 });
-  const currentShape = useRef(null);
-  const historyRef = useRef([]);
-  const isUndoing = useRef(false);
-  const isRemoteDrawing = useRef(false);
+  const [strokeColor, setStrokeColor] = useState('#1e293b');
+  const [brushSize, setBrushSize] = useState(3);
 
   useEffect(() => {
     socketRef.current = socket;
     sessionIdRef.current = sessionId;
   }, [socket, sessionId]);
 
-  const emitCanvasObject = useCallback((fabricObj) => {
-    if (!isRemoteDrawing.current && socketRef.current && fabricObj) {
-      socketRef.current.emit('whiteboard:draw', {
+  const emitOrQueueStroke = useCallback((fabricObject) => {
+    if (!fabricObject) return;
+    const sig = getObjectSignature(fabricObject);
+    if (sig) renderedSignaturesRef.current.add(sig);
+
+    const activeSocket = socketRef.current;
+    if (activeSocket && activeSocket.connected && navigator.onLine !== false) {
+      activeSocket.emit('whiteboard:draw', {
         sessionId: sessionIdRef.current,
-        fabricObject: fabricObj.toJSON()
+        fabricObject
       });
-    }
-  }, []);
-
-  const updateCursor = useCallback((canvas, tool, brushColor) => {
-    if (!canvas) return;
-    if (tool === 'pen' || tool === 'eraser') {
-      const size = tool === 'eraser' ? 25 : 6;
-      const cursorColor = tool === 'eraser' ? '#ffffff' : brushColor;
-      const strokeColor = tool === 'eraser' ? '#000000' : 'none';
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-                    <circle cx="${size / 2}" cy="${size / 2}" r="${size / 2 - 1}" fill="${cursorColor}" stroke="${strokeColor}" stroke-width="1"/>
-                  </svg>`;
-      const cursorUrl = `url('data:image/svg+xml;utf8,${encodeURIComponent(svg)}') ${size / 2} ${size / 2}, auto`;
-      canvas.freeDrawingCursor = cursorUrl;
-      canvas.defaultCursor = cursorUrl;
-      canvas.hoverCursor = cursorUrl;
-    } else if (tool === 'select') {
-      canvas.defaultCursor = 'default';
-      canvas.hoverCursor = 'move';
-    } else if (tool === 'pan') {
-      canvas.defaultCursor = 'grab';
-      canvas.hoverCursor = 'grab';
     } else {
-      canvas.defaultCursor = 'crosshair';
-      canvas.hoverCursor = 'crosshair';
+      offlineStrokeQueueRef.current.push(fabricObject);
     }
   }, []);
 
-  useEffect(() => {
-    activeToolRef.current = activeTool;
-    colorRef.current = color;
-    if (fabricRef.current) {
-      if (activeTool === 'pen') fabricRef.current.freeDrawingBrush.color = color;
-      updateCursor(fabricRef.current, activeTool, color);
-    }
-  }, [activeTool, color, updateCursor]);
+  const enlivenAndAddObjects = useCallback((objectsArray = [], clearExisting = false) => {
+    const canvas = fabricRef.current;
+    if (!canvas) return;
 
-  const saveState = useCallback(() => {
-    if (!isUndoing.current && fabricRef.current) {
-      if (historyRef.current.length > 30) historyRef.current.shift();
-      historyRef.current.push(JSON.stringify(fabricRef.current.toJSON()));
+    isApplyingRemoteRef.current = true;
+    if (clearExisting) {
+      canvas.clear();
+      canvas.backgroundColor = '#ffffff';
+      renderedSignaturesRef.current.clear();
     }
-  }, []);
 
-  const handleUndo = useCallback(() => {
-    if (historyRef.current.length > 1) {
-      isUndoing.current = true;
-      historyRef.current.pop();
-      const prevState = historyRef.current[historyRef.current.length - 1];
-      fabricRef.current.loadFromJSON(prevState, () => {
-        fabricRef.current.renderAll();
-        isUndoing.current = false;
-        updateCursor(fabricRef.current, activeToolRef.current, colorRef.current);
-      });
-    } else if (historyRef.current.length === 1) {
-      isUndoing.current = true;
-      historyRef.current = [];
-      fabricRef.current.clear();
-      fabricRef.current.backgroundColor = '#ffffff';
-      saveState();
-      isUndoing.current = false;
+    const validObjects = (Array.isArray(objectsArray) ? objectsArray : []).filter((item) => {
+      const sig = getObjectSignature(item);
+      if (!sig) return false;
+      if (renderedSignaturesRef.current.has(sig)) return false;
+      renderedSignaturesRef.current.add(sig);
+      return true;
+    });
+
+    if (validObjects.length === 0) {
+      canvas.renderAll();
+      isApplyingRemoteRef.current = false;
+      return;
     }
-  }, [updateCursor, saveState]);
 
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.ctrlKey && e.key === 'z') {
-        e.preventDefault();
-        handleUndo();
+    if (fabric.util && typeof fabric.util.enlivenObjects === 'function') {
+      try {
+        const maybePromise = fabric.util.enlivenObjects(validObjects, (enlivened) => {
+          if (Array.isArray(enlivened)) {
+            enlivened.forEach((obj) => canvas.add(obj));
+            canvas.renderAll();
+          }
+          isApplyingRemoteRef.current = false;
+        });
+
+        if (maybePromise && typeof maybePromise.then === 'function') {
+          maybePromise
+            .then((enlivened) => {
+              if (Array.isArray(enlivened)) {
+                enlivened.forEach((obj) => canvas.add(obj));
+                canvas.renderAll();
+              }
+              isApplyingRemoteRef.current = false;
+            })
+            .catch(() => {
+              isApplyingRemoteRef.current = false;
+            });
+        }
+        return;
+      } catch (_e) {
+        isApplyingRemoteRef.current = false;
       }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleUndo]);
+    }
 
+    isApplyingRemoteRef.current = false;
+  }, []);
+
+  // Initialize Fabric.js Canvas once without breaking DOM structure
   useEffect(() => {
-    const canvas = new fabric.Canvas(canvasRef.current, {
-      width: wrapperRef.current ? wrapperRef.current.clientWidth : 800,
-      height: wrapperRef.current ? wrapperRef.current.clientHeight : 600,
+    if (!canvasElRef.current || !containerRef.current) return undefined;
+
+    const { clientWidth, clientHeight } = containerRef.current;
+    const canvas = new fabric.Canvas(canvasElRef.current, {
       isDrawingMode: true,
       backgroundColor: '#ffffff',
-      selection: false
+      width: clientWidth || 800,
+      height: clientHeight || 600,
+      selection: true
     });
 
-    canvas.freeDrawingBrush.width = 3;
-    fabricRef.current = canvas;
-    saveState();
-    updateCursor(canvas, 'pen', '#000000');
-
-    const resizeObserver = new ResizeObserver(() => {
-      if (fabricRef.current && wrapperRef.current) {
-        fabricRef.current.setWidth(wrapperRef.current.clientWidth);
-        fabricRef.current.setHeight(wrapperRef.current.clientHeight);
-        fabricRef.current.calcOffset();
-        fabricRef.current.renderAll();
-      }
-    });
-
-    if (wrapperRef.current) {
-      resizeObserver.observe(wrapperRef.current);
+    if (canvas.freeDrawingBrush) {
+      canvas.freeDrawingBrush.color = strokeColor;
+      canvas.freeDrawingBrush.width = brushSize;
     }
 
-    canvas.on('mouse:wheel', function (opt) {
-      const delta = opt.e.deltaY;
-      let zoom = canvas.getZoom();
-      zoom *= 0.999 ** delta;
-      if (zoom > 20) zoom = 20;
-      if (zoom < 0.1) zoom = 0.1;
-      canvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
-      setZoomLevel(zoom);
-      opt.e.preventDefault();
-      opt.e.stopPropagation();
-    });
+    fabricRef.current = canvas;
 
-    canvas.on('path:created', (e) => {
-      saveState();
-      emitCanvasObject(e.path);
-    });
+    const handlePathCreated = (opt) => {
+      if (isApplyingRemoteRef.current || !opt?.path) return;
+      const serialized = opt.path.toObject();
+      emitOrQueueStroke(serialized);
+    };
 
-    canvas.on('object:modified', (e) => {
-      saveState();
-      emitCanvasObject(e.target);
-    });
+    canvas.on('path:created', handlePathCreated);
 
-    canvas.on('mouse:down', (o) => {
-      const tool = activeToolRef.current;
-      if (tool === 'pan') {
-        canvas.isDragging = true;
-        canvas.selection = false;
-        canvas.lastPosX = o.e.clientX;
-        canvas.lastPosY = o.e.clientY;
-        return;
-      }
-
-      if (tool === 'rect' || tool === 'circle') {
-        isDrawingShape.current = true;
-        const pointer = canvas.getPointer(o.e);
-        originPos.current = { x: pointer.x, y: pointer.y };
-
-        if (tool === 'rect') {
-          currentShape.current = new fabric.Rect({
-            left: originPos.current.x,
-            top: originPos.current.y,
-            width: 0,
-            height: 0,
-            fill: 'transparent',
-            stroke: colorRef.current,
-            strokeWidth: 3,
-            selectable: false
-          });
-        } else {
-          currentShape.current = new fabric.Circle({
-            left: originPos.current.x,
-            top: originPos.current.y,
-            radius: 0,
-            fill: 'transparent',
-            stroke: colorRef.current,
-            strokeWidth: 3,
-            selectable: false,
-            originX: 'center',
-            originY: 'center'
-          });
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        if (width > 0 && height > 0 && fabricRef.current) {
+          fabricRef.current.setDimensions({ width, height });
+          fabricRef.current.renderAll();
         }
-        canvas.add(currentShape.current);
       }
     });
 
-    canvas.on('mouse:move', (o) => {
-      if (canvas.isDragging && activeToolRef.current === 'pan') {
-        const e = o.e;
-        const vpt = canvas.viewportTransform;
-        vpt[4] += e.clientX - canvas.lastPosX;
-        vpt[5] += e.clientY - canvas.lastPosY;
-        canvas.requestRenderAll();
-        canvas.lastPosX = e.clientX;
-        canvas.lastPosY = e.clientY;
-        return;
-      }
-
-      if (!isDrawingShape.current || !currentShape.current) return;
-      const pointer = canvas.getPointer(o.e);
-      const tool = activeToolRef.current;
-      if (tool === 'rect') {
-        currentShape.current.set({
-          width: Math.abs(pointer.x - originPos.current.x),
-          height: Math.abs(pointer.y - originPos.current.y)
-        });
-        if (pointer.x < originPos.current.x) currentShape.current.set({ left: pointer.x });
-        if (pointer.y < originPos.current.y) currentShape.current.set({ top: pointer.y });
-      } else if (tool === 'circle') {
-        currentShape.current.set({
-          radius: Math.max(
-            Math.abs(pointer.x - originPos.current.x),
-            Math.abs(pointer.y - originPos.current.y)
-          )
-        });
-      }
-      canvas.renderAll();
-    });
-
-    canvas.on('mouse:up', () => {
-      if (canvas.isDragging && activeToolRef.current === 'pan') {
-        canvas.setViewportTransform(canvas.viewportTransform);
-        canvas.isDragging = false;
-      }
-      if (isDrawingShape.current && currentShape.current) {
-        currentShape.current.setCoords();
-        saveState();
-        emitCanvasObject(currentShape.current);
-      }
-      isDrawingShape.current = false;
-      currentShape.current = null;
-    });
+    resizeObserver.observe(containerRef.current);
 
     return () => {
       resizeObserver.disconnect();
+      canvas.off('path:created', handlePathCreated);
       canvas.dispose();
+      fabricRef.current = null;
     };
-  }, [updateCursor, saveState, emitCanvasObject]);
-  
+  }, [emitOrQueueStroke]);
+
+  // Update brush mode and properties when toolbar changes
   useEffect(() => {
-    if (!socket) return;
+    const canvas = fabricRef.current;
+    if (!canvas) return;
+
+    canvas.isDrawingMode = activeTool === 'pen' || activeTool === 'eraser';
+    if (canvas.freeDrawingBrush) {
+      canvas.freeDrawingBrush.color = activeTool === 'eraser' ? '#ffffff' : strokeColor;
+      canvas.freeDrawingBrush.width = activeTool === 'eraser' ? brushSize * 5 : brushSize;
+    }
+  }, [activeTool, strokeColor, brushSize]);
+
+  // Bind Socket.io events for real-time drawing and reconnection state reconciliation
+  useEffect(() => {
+    if (!socket) return undefined;
 
     const handleRemoteDraw = ({ fabricObject }) => {
-      if (!fabricRef.current || !fabricObject) return;
-      isRemoteDrawing.current = true;
-      fabric.util.enlivenObjects([fabricObject], (objects) => {
-        objects.forEach((obj) => {
-          obj.set({ selectable: activeToolRef.current === 'select' });
-          fabricRef.current.add(obj);
-        });
-        fabricRef.current.renderAll();
-        saveState();
-        isRemoteDrawing.current = false;
-      });
+      if (!fabricObject) return;
+      enlivenAndAddObjects([fabricObject], false);
     };
 
     const handleRemoteClear = () => {
-      if (!fabricRef.current) return;
-      isRemoteDrawing.current = true;
-      fabricRef.current.clear();
-      fabricRef.current.backgroundColor = '#ffffff';
-      fabricRef.current.renderAll();
-      saveState();
-      isRemoteDrawing.current = false;
+      const canvas = fabricRef.current;
+      if (!canvas) return;
+      isApplyingRemoteRef.current = true;
+      canvas.clear();
+      canvas.backgroundColor = '#ffffff';
+      renderedSignaturesRef.current.clear();
+      canvas.renderAll();
+      isApplyingRemoteRef.current = false;
     };
 
-    const handleStateSync = ({ whiteboard }) => {
-      if (!fabricRef.current || !Array.isArray(whiteboard) || whiteboard.length === 0) return;
-      isRemoteDrawing.current = true;
-      fabric.util.enlivenObjects(whiteboard, (objects) => {
-        objects.forEach((obj) => fabricRef.current.add(obj));
-        fabricRef.current.renderAll();
-        saveState();
-        isRemoteDrawing.current = false;
-      });
+    const handleStateSync = ({ whiteboard, replaceCanvas }) => {
+      if (!Array.isArray(whiteboard)) return;
+      const queuedOffline = [...offlineStrokeQueueRef.current];
+      const mergedStrokes = [...whiteboard, ...queuedOffline];
+
+      // Replace canvas cleanly without duplicate strokes
+      enlivenAndAddObjects(mergedStrokes, replaceCanvas !== false);
+
+      // Flush any strokes drawn while disconnected
+      if (queuedOffline.length > 0 && socket.connected) {
+        offlineStrokeQueueRef.current = [];
+        queuedOffline.forEach((stroke) => {
+          socket.emit('whiteboard:draw', {
+            sessionId: sessionIdRef.current,
+            fabricObject: stroke
+          });
+        });
+      }
     };
 
     socket.on('whiteboard:draw', handleRemoteDraw);
@@ -299,177 +227,170 @@ export default function CollaborativeWhiteboard({ socket, sessionId }) {
       socket.off('whiteboard:clear', handleRemoteClear);
       socket.off('room:state-sync', handleStateSync);
     };
-  }, [socket, saveState]);
+  }, [socket, enlivenAndAddObjects]);
 
-  const toggleTool = (tool) => {
-    setActiveTool(tool);
+  const handleAddShape = (shapeType) => {
     const canvas = fabricRef.current;
     if (!canvas) return;
+    setActiveTool('select');
+    canvas.isDrawingMode = false;
 
-    const makeSelectable = (isSelectable) => {
-      canvas.getObjects().forEach((obj) => {
-        obj.set('selectable', isSelectable);
-        obj.set('evented', isSelectable);
+    let shape = null;
+    if (shapeType === 'rect') {
+      shape = new fabric.Rect({
+        left: 120 + Math.floor(Math.random() * 80),
+        top: 120 + Math.floor(Math.random() * 80),
+        width: 110,
+        height: 75,
+        fill: 'transparent',
+        stroke: strokeColor,
+        strokeWidth: brushSize
       });
-    };
+    } else if (shapeType === 'circle') {
+      shape = new fabric.Circle({
+        left: 150 + Math.floor(Math.random() * 80),
+        top: 140 + Math.floor(Math.random() * 80),
+        radius: 45,
+        fill: 'transparent',
+        stroke: strokeColor,
+        strokeWidth: brushSize
+      });
+    } else if (shapeType === 'text') {
+      shape = new fabric.IText('Label', {
+        left: 140,
+        top: 140,
+        fontSize: 18,
+        fill: strokeColor,
+        fontFamily: 'sans-serif'
+      });
+    }
 
-    if (tool === 'pen') {
-      canvas.isDrawingMode = true;
-      canvas.freeDrawingBrush.color = color;
-      canvas.freeDrawingBrush.width = 3;
-      canvas.selection = false;
-      makeSelectable(false);
-    } else if (tool === 'eraser') {
-      canvas.isDrawingMode = true;
-      canvas.freeDrawingBrush.color = '#ffffff';
-      canvas.freeDrawingBrush.width = 25;
-      canvas.selection = false;
-      makeSelectable(false);
-    } else if (tool === 'select') {
-      canvas.isDrawingMode = false;
-      canvas.selection = true;
-      makeSelectable(true);
-    } else {
-      canvas.isDrawingMode = false;
-      canvas.selection = false;
-      makeSelectable(false);
+    if (shape) {
+      isApplyingRemoteRef.current = true;
+      canvas.add(shape);
+      canvas.setActiveObject(shape);
+      canvas.renderAll();
+      isApplyingRemoteRef.current = false;
+      emitOrQueueStroke(shape.toObject());
     }
   };
 
-  const handleZoom = (factor) => {
-    if (!fabricRef.current) return;
-    let newZoom = fabricRef.current.getZoom() * factor;
-    if (newZoom > 20) newZoom = 20;
-    if (newZoom < 0.1) newZoom = 0.1;
-    fabricRef.current.zoomToPoint(
-      { x: fabricRef.current.width / 2, y: fabricRef.current.height / 2 },
-      newZoom
-    );
-    setZoomLevel(newZoom);
-  };
+  const handleClearCanvas = () => {
+    const canvas = fabricRef.current;
+    if (!canvas) return;
+    isApplyingRemoteRef.current = true;
+    canvas.clear();
+    canvas.backgroundColor = '#ffffff';
+    renderedSignaturesRef.current.clear();
+    offlineStrokeQueueRef.current = [];
+    canvas.renderAll();
+    isApplyingRemoteRef.current = false;
 
-  const clearCanvas = () => {
-    if (fabricRef.current) {
-      fabricRef.current.clear();
-      fabricRef.current.backgroundColor = '#ffffff';
-      saveState();
-      socket?.emit('whiteboard:clear', { sessionId });
-    }
+    socketRef.current?.emit('whiteboard:clear', {
+      sessionId: sessionIdRef.current
+    });
   };
 
   return (
-    <div ref={wrapperRef} className="w-full h-full relative overflow-hidden bg-gray-200">
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 flex items-center bg-[#1c212c] text-white px-2 py-1.5 rounded-lg shadow-xl border border-gray-700 gap-1.5 flex-wrap justify-center w-max max-w-full">
-        <button
-          onClick={() => toggleTool('select')}
-          className={`p-1.5 rounded text-xs font-medium flex items-center gap-1 transition-colors ${
-            activeTool === 'select' ? 'bg-blue-600' : 'hover:bg-gray-700'
-          }`}
-          title="Select"
-        >
-          👆
-        </button>
-        <button
-          onClick={() => toggleTool('pan')}
-          className={`p-1.5 rounded text-xs font-medium flex items-center gap-1 transition-colors ${
-            activeTool === 'pan' ? 'bg-blue-600' : 'hover:bg-gray-700'
-          }`}
-          title="Move Canvas"
-        >
-          ✋
-        </button>
-        <button
-          onClick={() => toggleTool('pen')}
-          className={`p-1.5 rounded text-xs font-medium flex items-center gap-1 transition-colors ${
-            activeTool === 'pen' ? 'bg-blue-600' : 'hover:bg-gray-700'
-          }`}
-          title="Pen"
-        >
-          ✏️
-        </button>
-        <button
-          onClick={() => toggleTool('eraser')}
-          className={`p-1.5 rounded text-xs font-medium flex items-center gap-1 transition-colors ${
-            activeTool === 'eraser' ? 'bg-gray-500' : 'hover:bg-gray-700'
-          }`}
-          title="Eraser"
-        >
-          🧽
-        </button>
+    <div ref={containerRef} className="w-full h-full relative bg-white overflow-hidden select-none">
+      {/* Floating Whiteboard Toolbar */}
+      <div className="absolute top-10 left-4 z-20 bg-[#1c212c]/95 border border-gray-700 rounded-xl p-2 shadow-xl flex flex-col gap-2 text-white">
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setActiveTool('select')}
+            className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs transition ${
+              activeTool === 'select' ? 'bg-blue-600 text-white' : 'hover:bg-gray-700 text-gray-300'
+            }`}
+            title="Select / Move"
+          >
+            ↖
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTool('pen')}
+            className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs transition ${
+              activeTool === 'pen' ? 'bg-blue-600 text-white' : 'hover:bg-gray-700 text-gray-300'
+            }`}
+            title="Freehand Pen"
+          >
+            ✏️
+          </button>
+          <button
+            type="button"
+            onClick={() => handleAddShape('rect')}
+            className="w-8 h-8 rounded-lg hover:bg-gray-700 flex items-center justify-center text-xs"
+            title="Add Rectangle"
+          >
+            🟦
+          </button>
+          <button
+            type="button"
+            onClick={() => handleAddShape('circle')}
+            className="w-8 h-8 rounded-lg hover:bg-gray-700 flex items-center justify-center text-xs"
+            title="Add Circle"
+          >
+            🔵
+          </button>
+          <button
+            type="button"
+            onClick={() => handleAddShape('text')}
+            className="w-8 h-8 rounded-lg hover:bg-gray-700 flex items-center justify-center text-xs font-bold"
+            title="Add Text"
+          >
+            T
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTool('eraser')}
+            className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs transition ${
+              activeTool === 'eraser' ? 'bg-blue-600 text-white' : 'hover:bg-gray-700 text-gray-300'
+            }`}
+            title="Eraser"
+          >
+            🧽
+          </button>
+          <button
+            type="button"
+            onClick={handleClearCanvas}
+            className="w-8 h-8 rounded-lg hover:bg-red-600/80 flex items-center justify-center text-xs"
+            title="Clear Canvas"
+          >
+            🧹
+          </button>
+        </div>
 
-        <div className="w-px h-5 bg-gray-600 mx-0.5" />
+        <div className="flex items-center justify-between gap-2 pt-1 border-t border-gray-700">
+          <div className="flex items-center gap-1">
+            {COLORS.map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => {
+                  setStrokeColor(c);
+                  if (activeTool === 'eraser') setActiveTool('pen');
+                }}
+                style={{ backgroundColor: c }}
+                className={`w-4 h-4 rounded-full border ${
+                  strokeColor === c ? 'border-white scale-110' : 'border-transparent'
+                }`}
+              />
+            ))}
+          </div>
 
-        <button
-          onClick={() => toggleTool('rect')}
-          className={`p-1.5 rounded text-xs font-medium flex items-center gap-1 transition-colors ${
-            activeTool === 'rect' ? 'bg-blue-600' : 'hover:bg-gray-700'
-          }`}
-          title="Rectangle"
-        >
-          🟦
-        </button>
-        <button
-          onClick={() => toggleTool('circle')}
-          className={`p-1.5 rounded text-xs font-medium flex items-center gap-1 transition-colors ${
-            activeTool === 'circle' ? 'bg-blue-600' : 'hover:bg-gray-700'
-          }`}
-          title="Circle"
-        >
-          🔵
-        </button>
-        <div className="flex items-center px-1 hover:bg-gray-700 rounded py-1 cursor-pointer">
           <input
-            type="color"
-            value={color}
-            onChange={(e) => setColor(e.target.value)}
-            className="w-5 h-5 border-0 bg-transparent cursor-pointer rounded overflow-hidden"
-            title="Change Color"
+            type="range"
+            min="1"
+            max="12"
+            value={brushSize}
+            onChange={(e) => setBrushSize(Number(e.target.value))}
+            className="w-16 accent-blue-500 cursor-pointer"
+            title="Stroke Width"
           />
         </div>
-
-        <div className="w-px h-5 bg-gray-600 mx-0.5" />
-
-        <div className="flex items-center bg-[#232834] rounded px-1">
-          <button
-            onClick={() => handleZoom(0.8)}
-            className="p-1 hover:text-blue-400 text-xs transition-colors"
-            title="Zoom Out"
-          >
-            🔍-
-          </button>
-          <span className="text-[10px] w-8 text-center text-gray-400">
-            {Math.round(zoomLevel * 100)}%
-          </span>
-          <button
-            onClick={() => handleZoom(1.2)}
-            className="p-1 hover:text-blue-400 text-xs transition-colors"
-            title="Zoom In"
-          >
-            🔍+
-          </button>
-        </div>
-
-        <div className="w-px h-5 bg-gray-600 mx-0.5" />
-
-        <button
-          onClick={handleUndo}
-          className="px-2 py-1.5 rounded text-xs font-medium hover:bg-gray-700 flex items-center gap-1"
-          title="Undo (Ctrl+Z)"
-        >
-          ↶
-        </button>
-        <button
-          onClick={clearCanvas}
-          className="px-2 py-1.5 rounded text-xs font-medium text-red-400 hover:bg-gray-700 hover:text-red-300 flex items-center gap-1"
-          title="Clear Canvas"
-        >
-          🧹
-        </button>
       </div>
 
-      <div className="w-full h-full">
-        <canvas ref={canvasRef} className="w-full h-full" />
-      </div>
+      <canvas ref={canvasElRef} />
     </div>
   );
 }
