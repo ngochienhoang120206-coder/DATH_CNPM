@@ -24,7 +24,9 @@ export default function App() {
         <Route path="/profile" element={<AuthScreens key="profile" mode="profile" />} />
         <Route path="/instructor" element={<InstructorDashboardPage />} />
         <Route path="/workspace/:courseId" element={<LearningWorkspacePage />} />
-        <Route path="/assessments/:assessmentId" element={<AssessmentPage />} />
+        <Route path="/assessments" element={<AssessmentPage />} />
+        <Route path="/assessments/:id" element={<AssessmentPage />} />
+        <Route path="/courses/:courseId/assessments" element={<AssessmentPage />} />
         <Route path="/admin" element={<AdminDashboardPage />} />
         <Route path="/room" element={<RoomLayout />} />
       </Routes>
