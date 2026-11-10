@@ -20,28 +20,114 @@ export default function RoomLayout({ courseId: propCourseId, sessionId: propSess
 
   const [socket, setSocket] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [connectionState, setConnectionState] = useState('connecting'); // 'connected' | 'reconnecting' | 'disconnected'
+  const [reconnectAttempt, setReconnectAttempt] = useState(0);
+  const [toastBanner, setToastBanner] = useState(null); // { type: 'warning' | 'error' | 'success', text: string, spinning: boolean }
+
   const [participants, setParticipants] = useState([]);
   const [remoteCursors, setRemoteCursors] = useState({});
   const [codeSnapshot, setCodeSnapshot] = useState('');
   const [notesSnapshot, setNotesSnapshot] = useState('');
 
   const containerRef = useRef(null);
+  const hadConnectedOnceRef = useRef(false);
+  const toastTimeoutRef = useRef(null);
+
+  const showConnectionToast = useCallback((type, text, spinning = false, autoHideMs = 0) => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+      toastTimeoutRef.current = null;
+    }
+    setToastBanner({ type, text, spinning });
+    if (autoHideMs > 0) {
+      toastTimeoutRef.current = setTimeout(() => {
+        setToastBanner(null);
+      }, autoHideMs);
+    }
+  }, []);
 
   useEffect(() => {
     let activeSocket = null;
+    let isMounted = true;
 
     connectClassroomSocket()
       .then((s) => {
+        if (!isMounted) {
+          s.disconnect();
+          return;
+        }
         activeSocket = s;
         setSocket(s);
 
         s.on('connect', () => {
           setIsConnected(true);
-          s.emit('room:join', { sessionId, courseId });
+          setConnectionState('connected');
+          setReconnectAttempt(0);
+
+          if (hadConnectedOnceRef.current) {
+            showConnectionToast(
+              'success',
+              'Đã kết nối — Đang đồng bộ trạng thái bảng trắng và mã nguồn mới nhất...',
+              false,
+              3500
+            );
+            s.emit('room:reconnect', { sessionId, courseId });
+            s.emit('room:sync-request', { sessionId, courseId });
+          } else {
+            hadConnectedOnceRef.current = true;
+            s.emit('room:join', { sessionId, courseId });
+          }
         });
 
-        s.on('disconnect', () => {
+        s.on('disconnect', (reason) => {
           setIsConnected(false);
+          setConnectionState('reconnecting');
+          showConnectionToast(
+            'warning',
+            'Đang mất kết nối, đang thử lại...',
+            true,
+            0
+          );
+          if (reason === 'io server disconnect') {
+            s.connect();
+          }
+        });
+
+        s.on('connect_error', () => {
+          setIsConnected(false);
+          setConnectionState('reconnecting');
+          showConnectionToast(
+            'error',
+            'Đang mất kết nối, đang thử lại...',
+            true,
+            0
+          );
+        });
+
+        s.io.on('reconnect_attempt', (attempt) => {
+          setIsConnected(false);
+          setConnectionState('reconnecting');
+          setReconnectAttempt(attempt);
+          showConnectionToast(
+            'warning',
+            `Đang kết nối lại... (Lần thử #${attempt})`,
+            true,
+            0
+          );
+        });
+
+        s.io.on('reconnect', () => {
+          setIsConnected(true);
+          setConnectionState('connected');
+          setReconnectAttempt(0);
+          showConnectionToast(
+            'success',
+            'Đã kết nối — Khôi phục trạng thái phòng học thành công!',
+            false,
+            3500
+          );
+          s.emit('room:reconnect', { sessionId, courseId });
+          s.emit('room:sync-request', { sessionId, courseId });
         });
 
         s.on('room:participants', (list) => {
@@ -56,8 +142,9 @@ export default function RoomLayout({ courseId: propCourseId, sessionId: propSess
           });
         });
 
-        s.on('room:state-sync', ({ notes }) => {
+        s.on('room:state-sync', ({ notes, participants: syncedParticipants }) => {
           if (typeof notes === 'string') setNotesSnapshot(notes);
+          if (Array.isArray(syncedParticipants)) setParticipants(syncedParticipants);
         });
 
         s.on('notes:update', ({ notes }) => {
@@ -74,13 +161,52 @@ export default function RoomLayout({ courseId: propCourseId, sessionId: propSess
         });
       })
       .catch(() => {
-        setIsConnected(false);
+        if (isMounted) {
+          setIsConnected(false);
+          setConnectionState('disconnected');
+          showConnectionToast('error', 'Đang mất kết nối, đang thử lại...', true, 0);
+        }
       });
 
+    // Browser DevTools Network Offline/Online listeners for immediate UI feedback & resync
+    const handleBrowserOffline = () => {
+      setIsConnected(false);
+      setConnectionState('reconnecting');
+      showConnectionToast('warning', 'Đang mất kết nối, đang thử lại...', true, 0);
+    };
+
+    const handleBrowserOnline = () => {
+      setConnectionState('reconnecting');
+      showConnectionToast('warning', 'Đang kết nối lại...', true, 0);
+      if (activeSocket) {
+        if (!activeSocket.connected) {
+          activeSocket.connect();
+        } else {
+          setIsConnected(true);
+          setConnectionState('connected');
+          activeSocket.emit('room:reconnect', { sessionId, courseId });
+          activeSocket.emit('room:sync-request', { sessionId, courseId });
+          showConnectionToast(
+            'success',
+            'Đã kết nối — Khôi phục trạng thái phòng học thành công!',
+            false,
+            3500
+          );
+        }
+      }
+    };
+
+    window.addEventListener('offline', handleBrowserOffline);
+    window.addEventListener('online', handleBrowserOnline);
+
     return () => {
+      isMounted = false;
+      window.removeEventListener('offline', handleBrowserOffline);
+      window.removeEventListener('online', handleBrowserOnline);
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
       activeSocket?.disconnect();
     };
-  }, [sessionId, courseId]);
+  }, [sessionId, courseId, showConnectionToast]);
 
   const handleNotesChange = (e) => {
     const val = e.target.value;
@@ -140,15 +266,46 @@ export default function RoomLayout({ courseId: propCourseId, sessionId: propSess
   };
 
   return (
-    <div className="flex flex-col w-full h-screen bg-[#11151c] text-white overflow-hidden font-sans">
+    <div className="flex flex-col w-full h-screen bg-[#11151c] text-white overflow-hidden font-sans relative">
       <RoomHeader
         viewMode={viewMode}
         setViewMode={setViewMode}
         isConnected={isConnected}
+        connectionState={connectionState}
+        reconnectAttempt={reconnectAttempt}
         sessionId={sessionId}
         onSaveSession={handleSaveSession}
         onLeaveRoom={handleLeaveRoom}
       />
+
+      {/* Corner Reconnection Toast / Status Banner */}
+      {toastBanner && (
+        <div
+          role="status"
+          data-testid="reconnection-toast-banner"
+          className={`fixed bottom-5 right-5 z-50 px-4 py-3 rounded-xl border shadow-2xl flex items-center gap-3 text-xs font-bold transition-all ${
+            toastBanner.type === 'success'
+              ? 'bg-emerald-950/95 border-emerald-500 text-emerald-200'
+              : toastBanner.type === 'error'
+              ? 'bg-red-950/95 border-red-500 text-red-200'
+              : 'bg-amber-950/95 border-amber-500 text-amber-200'
+          }`}
+        >
+          {toastBanner.spinning ? (
+            <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin shrink-0" />
+          ) : (
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0" />
+          )}
+          <span>{toastBanner.text}</span>
+          <button
+            type="button"
+            onClick={() => setToastBanner(null)}
+            className="ml-2 text-[11px] opacity-75 hover:opacity-100 underline"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       <div ref={containerRef} className="flex flex-1 overflow-hidden p-3 gap-1 relative">
         {isDragging && <div className="absolute inset-0 z-50 cursor-col-resize" />}
