@@ -1,3 +1,4 @@
+const path = require('path');
 const jwt = require('jsonwebtoken');
 const redis = require('../config/redis');
 const prisma = require('../config/db');
@@ -6,7 +7,11 @@ let Y = null;
 try {
   Y = require('yjs');
 } catch (_e) {
-  Y = null;
+  try {
+    Y = require(path.resolve(__dirname, '../../../frontend/node_modules/yjs'));
+  } catch (_e2) {
+    Y = null;
+  }
 }
 
 const ROOM_TTL_SECONDS = 24 * 60 * 60; // 24h TTL as specified in Sequence Diagram
@@ -99,15 +104,13 @@ module.exports = function initClassroomSocket(io) {
   };
 
   const persistSnapshotToDatabase = async (sessionId, extra = {}) => {
-    if (!sessionId) return;
+    if (!sessionId) return null;
     try {
       const meta = activeSessions.get(sessionId) || {};
       const snapshot = await getRoomSnapshot(sessionId);
 
-      let decodedCode =
-        extra.codeSnapshot !== undefined ? extra.codeSnapshot : meta.codeSnapshot || '';
-
-      if (!decodedCode && Y && snapshot.yjsState) {
+      let decodedCode = '';
+      if (Y && snapshot.yjsState && snapshot.yjsState.length > 0) {
         try {
           const ydoc = new Y.Doc();
           Y.applyUpdate(ydoc, new Uint8Array(snapshot.yjsState));
@@ -118,6 +121,11 @@ module.exports = function initClassroomSocket(io) {
         }
       }
 
+      if (!decodedCode) {
+        decodedCode =
+          extra.codeSnapshot !== undefined ? extra.codeSnapshot : meta.codeSnapshot || '';
+      }
+
       const notesSnapshot =
         extra.notesSnapshot !== undefined
           ? extra.notesSnapshot
@@ -125,7 +133,6 @@ module.exports = function initClassroomSocket(io) {
           ? meta.notesSnapshot
           : snapshot.notes;
 
-      // Resolve valid course and host for foreign-key integrity on sessions table
       let course = null;
       const candidateCourseId = extra.courseId || meta.courseId || sessionId;
       if (UUID_REGEX.test(candidateCourseId)) {
@@ -139,14 +146,14 @@ module.exports = function initClassroomSocket(io) {
           orderBy: { createdAt: 'asc' }
         });
       }
-      if (!course) return;
+      if (!course) return null;
 
       const hostId = extra.hostId || meta.hostId || course.instructor_id;
 
       if (UUID_REGEX.test(sessionId)) {
         const existingById = await prisma.sessions.findUnique({ where: { id: sessionId } });
         if (existingById) {
-          await prisma.sessions.update({
+          return prisma.sessions.update({
             where: { id: sessionId },
             data: {
               whiteboard_snapshot: snapshot.whiteboard,
@@ -155,10 +162,9 @@ module.exports = function initClassroomSocket(io) {
               ...(extra.endedAt ? { ended_at: extra.endedAt } : {})
             }
           });
-          return;
         }
 
-        await prisma.sessions.create({
+        return prisma.sessions.create({
           data: {
             id: sessionId,
             course_id: course.id,
@@ -170,7 +176,6 @@ module.exports = function initClassroomSocket(io) {
             notes_snapshot: notesSnapshot
           }
         });
-        return;
       }
 
       const existingCourseSession = await prisma.sessions.findFirst({
@@ -179,7 +184,7 @@ module.exports = function initClassroomSocket(io) {
       });
 
       if (existingCourseSession) {
-        await prisma.sessions.update({
+        return prisma.sessions.update({
           where: { id: existingCourseSession.id },
           data: {
             whiteboard_snapshot: snapshot.whiteboard,
@@ -188,21 +193,22 @@ module.exports = function initClassroomSocket(io) {
             ...(extra.endedAt ? { ended_at: extra.endedAt } : {})
           }
         });
-      } else {
-        await prisma.sessions.create({
-          data: {
-            course_id: course.id,
-            host_id: hostId,
-            started_at: new Date(),
-            ended_at: extra.endedAt || null,
-            whiteboard_snapshot: snapshot.whiteboard,
-            code_snapshot: decodedCode,
-            notes_snapshot: notesSnapshot
-          }
-        });
       }
+
+      return prisma.sessions.create({
+        data: {
+          course_id: course.id,
+          host_id: hostId,
+          started_at: new Date(),
+          ended_at: extra.endedAt || null,
+          whiteboard_snapshot: snapshot.whiteboard,
+          code_snapshot: decodedCode,
+          notes_snapshot: notesSnapshot
+        }
+      });
     } catch (err) {
       console.error('persistSnapshotToDatabase error:', err.message);
+      return null;
     }
   };
 
@@ -220,7 +226,6 @@ module.exports = function initClassroomSocket(io) {
     try {
       const { ticket, token } = socket.handshake.auth || {};
       if (ticket) {
-        // Step 6 in Sequence Diagram: Single-use ticket GET & DEL
         const rawUser = await redis.get(`socket_ticket:${ticket}`);
         if (rawUser) {
           await redis.del(`socket_ticket:${ticket}`);
@@ -229,7 +234,6 @@ module.exports = function initClassroomSocket(io) {
           return next();
         }
 
-        // Allow seamless Socket.io automatic reconnection using the bound session key
         const reconnectUser = await redis.get(`socket_session:${ticket}`);
         if (reconnectUser) {
           socket.user = JSON.parse(reconnectUser);
@@ -250,7 +254,7 @@ module.exports = function initClassroomSocket(io) {
       }
 
       return next(new Error('UNAUTHORIZED_SOCKET'));
-    } catch (err) {
+    } catch (_err) {
       return next(new Error('UNAUTHORIZED_SOCKET'));
     }
   });
@@ -276,7 +280,6 @@ module.exports = function initClassroomSocket(io) {
     const handleJoinOrSync = async ({ sessionId, courseId } = {}) => {
       if (!sessionId) return;
       try {
-        // Proposal 2.3 & Issue #21: Block non-enrolled students from joining live rooms
         if (socket.user?.role === 'student') {
           const checkCourseId =
             courseId && UUID_REGEX.test(courseId)
@@ -332,7 +335,6 @@ module.exports = function initClassroomSocket(io) {
         const snapshot = await getRoomSnapshot(sessionId);
         const participants = await broadcastParticipants(sessionId);
 
-        // Clear local canvas on the reconnecting client before applying full state-sync to prevent duplicate strokes
         socket.emit('whiteboard:clear');
         socket.emit('room:state-sync', {
           ...snapshot,
@@ -350,19 +352,22 @@ module.exports = function initClassroomSocket(io) {
     socket.on('room:reconnect', handleJoinOrSync);
     socket.on('room:sync-request', handleJoinOrSync);
 
-    socket.on('whiteboard:draw', async ({ sessionId, fabricObject }) => {
+    socket.on('whiteboard:draw', async ({ sessionId, fabricObject, sentAt }) => {
       if (!sessionId || !fabricObject) return;
       try {
         const key = `room:${sessionId}:whiteboard`;
         const serialized = JSON.stringify(fabricObject);
         const lastStroke = await redis.lindex(key, -1);
 
-        // Avoid duplicate stroke insertion during reconnection retries
         if (lastStroke !== serialized) {
           await redis.rpush(key, serialized);
         }
         await redis.expire(key, ROOM_TTL_SECONDS);
-        socket.to(sessionId).emit('whiteboard:draw', { fabricObject });
+        socket.to(sessionId).emit('whiteboard:draw', {
+          fabricObject,
+          sentAt: sentAt ?? null,
+          senderId: socket.user?.id || socket.id
+        });
       } catch (err) {
         console.error('whiteboard:draw error:', err.message);
       }
@@ -398,7 +403,7 @@ module.exports = function initClassroomSocket(io) {
       }
     });
 
-    socket.on('code:yjs-update', async ({ sessionId, update, codeSnapshot }) => {
+    socket.on('code:yjs-update', async ({ sessionId, update, codeSnapshot, sentAt }) => {
       if (!sessionId || !update) return;
       try {
         const incomingArray = toByteArray(update);
@@ -429,7 +434,11 @@ module.exports = function initClassroomSocket(io) {
         }
 
         await redis.set(key, JSON.stringify(finalArray), 'EX', ROOM_TTL_SECONDS);
-        socket.to(sessionId).emit('code:yjs-update', { update: finalArray });
+        socket.to(sessionId).emit('code:yjs-update', {
+          update: finalArray,
+          sentAt: sentAt ?? null,
+          senderId: socket.user?.id || socket.id
+        });
       } catch (err) {
         console.error('code:yjs-update error:', err.message);
       }
@@ -459,17 +468,27 @@ module.exports = function initClassroomSocket(io) {
       }
     });
 
-    socket.on('room:end-session', async ({ sessionId, codeSnapshot, notesSnapshot }) => {
+    socket.on('room:end-session', async ({ sessionId, codeSnapshot, notesSnapshot } = {}, ack) => {
       if (!sessionId) return;
       try {
-        await persistSnapshotToDatabase(sessionId, {
+        const savedRecord = await persistSnapshotToDatabase(sessionId, {
           codeSnapshot,
           notesSnapshot,
           endedAt: new Date()
         });
         activeSessions.delete(sessionId);
+        io.to(sessionId).emit('room:session-saved', {
+          sessionId,
+          savedRecordId: savedRecord?.id || sessionId
+        });
+        if (typeof ack === 'function') {
+          ack({ success: true, sessionId, savedRecordId: savedRecord?.id || sessionId });
+        }
       } catch (err) {
         console.error('room:end-session error:', err.message);
+        if (typeof ack === 'function') {
+          ack({ success: false, message: err.message });
+        }
       }
     });
 
