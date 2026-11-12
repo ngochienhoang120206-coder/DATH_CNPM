@@ -1,0 +1,357 @@
+{
+  "issue": "Issue #20 - Real-Time Collaborative Classroom Evaluation & Benchmarking",
+  "executedAt": "2026-11-12T08:47:31.596Z",
+  "sessionId": "e409b53d-98bb-499b-b9b5-f7c9544917fe",
+  "courseId": "05056323-6551-4356-8682-8a5cf0c17606",
+  "scenario": {
+    "concurrentUsers": 4,
+    "whiteboardDrawers": 2,
+    "yjsCoders": 2,
+    "phase1Rounds": 15,
+    "offlineRounds": 10,
+    "networkDropDurationMs": 5107.77,
+    "stateRecoveryTimeMs": 6.46
+  },
+  "latencyMetrics": {
+    "overall": {
+      "count": 240,
+      "minMs": 1.23,
+      "avgMs": 2.17,
+      "p50Ms": 1.97,
+      "p95Ms": 3.65,
+      "maxMs": 5.16
+    },
+    "whiteboard": {
+      "count": 130,
+      "minMs": 1.54,
+      "avgMs": 2.44,
+      "p50Ms": 2.19,
+      "p95Ms": 4.73,
+      "maxMs": 5.16
+    },
+    "yjsCrdt": {
+      "count": 110,
+      "minMs": 1.23,
+      "avgMs": 1.84,
+      "p50Ms": 1.72,
+      "p95Ms": 2.8,
+      "maxMs": 4.26
+    }
+  },
+  "convergenceMetrics": {
+    "phase1BeforeDisconnect": {
+      "converged": true,
+      "codeConverged": true,
+      "whiteboardConverged": true,
+      "convergenceRatePercent": 100,
+      "codeLength": 1011,
+      "codeHash": "436d707d4122",
+      "strokeCount": 30,
+      "whiteboardHash": "795df708a7bc",
+      "clientSummaries": [
+        {
+          "client": "Client #1",
+          "codeLength": 1011,
+          "codeHash": "436d707d4122",
+          "strokeCount": 30,
+          "whiteboardHash": "795df708a7bc"
+        },
+        {
+          "client": "Client #2",
+          "codeLength": 1011,
+          "codeHash": "436d707d4122",
+          "strokeCount": 30,
+          "whiteboardHash": "795df708a7bc"
+        },
+        {
+          "client": "Client #3",
+          "codeLength": 1011,
+          "codeHash": "436d707d4122",
+          "strokeCount": 30,
+          "whiteboardHash": "795df708a7bc"
+        },
+        {
+          "client": "Client #4",
+          "codeLength": 1011,
+          "codeHash": "436d707d4122",
+          "strokeCount": 30,
+          "whiteboardHash": "795df708a7bc"
+        }
+      ]
+    },
+    "phase2AfterReconnection": {
+      "converged": true,
+      "codeConverged": true,
+      "whiteboardConverged": true,
+      "convergenceRatePercent": 100,
+      "codeLength": 1252,
+      "codeHash": "aaa1c4ae4be5",
+      "strokeCount": 50,
+      "whiteboardHash": "83892f9a5f3a",
+      "clientSummaries": [
+        {
+          "client": "Client #1",
+          "codeLength": 1252,
+          "codeHash": "aaa1c4ae4be5",
+          "strokeCount": 50,
+          "whiteboardHash": "83892f9a5f3a"
+        },
+        {
+          "client": "Client #2",
+          "codeLength": 1252,
+          "codeHash": "aaa1c4ae4be5",
+          "strokeCount": 50,
+          "whiteboardHash": "83892f9a5f3a"
+        },
+        {
+          "client": "Client #3",
+          "codeLength": 1252,
+          "codeHash": "aaa1c4ae4be5",
+          "strokeCount": 50,
+          "whiteboardHash": "83892f9a5f3a"
+        },
+        {
+          "client": "Client #4",
+          "codeLength": 1252,
+          "codeHash": "aaa1c4ae4be5",
+          "strokeCount": 50,
+          "whiteboardHash": "83892f9a5f3a"
+        }
+      ]
+    }
+  },
+  "persistenceVerification": {
+    "persistedInPostgres": true,
+    "sessionTableId": "e409b53d-98bb-499b-b9b5-f7c9544917fe",
+    "savedStrokeCount": 50,
+    "savedCodeLength": 1252,
+    "endedAt": "2026-11-12T08:47:31.580Z"
+  },
+  "serverResourceMetrics": {
+    "cpuCores": 12,
+    "avgCpuPercent": 0.18,
+    "maxCpuPercent": 3.95,
+    "avgRssMb": 88.83,
+    "maxRssMb": 89.71,
+    "timeline": [
+      {
+        "timestampMs": 535.28,
+        "phase": "connected-4-clients",
+        "cpuPercent": 3.95,
+        "rssMb": 86.22,
+        "heapUsedMb": 18.05
+      },
+      {
+        "timestampMs": 724.52,
+        "phase": "steady-load",
+        "cpuPercent": 0,
+        "rssMb": 86.78,
+        "heapUsedMb": 20.33
+      },
+      {
+        "timestampMs": 988.74,
+        "phase": "steady-load",
+        "cpuPercent": 0,
+        "rssMb": 87.76,
+        "heapUsedMb": 18.87
+      },
+      {
+        "timestampMs": 1252.23,
+        "phase": "steady-load",
+        "cpuPercent": 0,
+        "rssMb": 88.52,
+        "heapUsedMb": 16.85
+      },
+      {
+        "timestampMs": 1516.58,
+        "phase": "steady-load",
+        "cpuPercent": 0,
+        "rssMb": 88.52,
+        "heapUsedMb": 16.85
+      },
+      {
+        "timestampMs": 1564.45,
+        "phase": "post-phase-1",
+        "cpuPercent": 0,
+        "rssMb": 88.52,
+        "heapUsedMb": 16.85
+      },
+      {
+        "timestampMs": 1767.59,
+        "phase": "steady-load",
+        "cpuPercent": 0,
+        "rssMb": 88.71,
+        "heapUsedMb": 17.61
+      },
+      {
+        "timestampMs": 2018.13,
+        "phase": "steady-load",
+        "cpuPercent": 0,
+        "rssMb": 88.71,
+        "heapUsedMb": 17.61
+      },
+      {
+        "timestampMs": 2282.37,
+        "phase": "steady-load",
+        "cpuPercent": 0,
+        "rssMb": 89.13,
+        "heapUsedMb": 18.2
+      },
+      {
+        "timestampMs": 2544.93,
+        "phase": "steady-load",
+        "cpuPercent": 0,
+        "rssMb": 89.07,
+        "heapUsedMb": 18.21
+      },
+      {
+        "timestampMs": 2795.54,
+        "phase": "steady-load",
+        "cpuPercent": 0,
+        "rssMb": 89.36,
+        "heapUsedMb": 18.81
+      },
+      {
+        "timestampMs": 3050.37,
+        "phase": "steady-load",
+        "cpuPercent": 0,
+        "rssMb": 88.6,
+        "heapUsedMb": 18.82
+      },
+      {
+        "timestampMs": 3301.6,
+        "phase": "steady-load",
+        "cpuPercent": 0,
+        "rssMb": 88.62,
+        "heapUsedMb": 19.37
+      },
+      {
+        "timestampMs": 3565.22,
+        "phase": "steady-load",
+        "cpuPercent": 0,
+        "rssMb": 88.62,
+        "heapUsedMb": 19.37
+      },
+      {
+        "timestampMs": 3827.73,
+        "phase": "steady-load",
+        "cpuPercent": 0,
+        "rssMb": 88.64,
+        "heapUsedMb": 19.94
+      },
+      {
+        "timestampMs": 4090.47,
+        "phase": "steady-load",
+        "cpuPercent": 0,
+        "rssMb": 88.64,
+        "heapUsedMb": 19.94
+      },
+      {
+        "timestampMs": 4354.36,
+        "phase": "steady-load",
+        "cpuPercent": 1.01,
+        "rssMb": 88.8,
+        "heapUsedMb": 20.51
+      },
+      {
+        "timestampMs": 4618.99,
+        "phase": "steady-load",
+        "cpuPercent": 0,
+        "rssMb": 88.8,
+        "heapUsedMb": 20.51
+      },
+      {
+        "timestampMs": 4873.07,
+        "phase": "steady-load",
+        "cpuPercent": 0,
+        "rssMb": 88.83,
+        "heapUsedMb": 21.1
+      },
+      {
+        "timestampMs": 5123.99,
+        "phase": "steady-load",
+        "cpuPercent": 0,
+        "rssMb": 88.83,
+        "heapUsedMb": 21.1
+      },
+      {
+        "timestampMs": 5388.1,
+        "phase": "steady-load",
+        "cpuPercent": 0,
+        "rssMb": 89.45,
+        "heapUsedMb": 21.7
+      },
+      {
+        "timestampMs": 5638.1,
+        "phase": "steady-load",
+        "cpuPercent": 0,
+        "rssMb": 89.45,
+        "heapUsedMb": 21.7
+      },
+      {
+        "timestampMs": 5899.93,
+        "phase": "steady-load",
+        "cpuPercent": 0.48,
+        "rssMb": 89.46,
+        "heapUsedMb": 22.27
+      },
+      {
+        "timestampMs": 6163.43,
+        "phase": "steady-load",
+        "cpuPercent": 0,
+        "rssMb": 89.46,
+        "heapUsedMb": 22.27
+      },
+      {
+        "timestampMs": 6425.62,
+        "phase": "steady-load",
+        "cpuPercent": 0,
+        "rssMb": 89.46,
+        "heapUsedMb": 22.88
+      },
+      {
+        "timestampMs": 6673.12,
+        "phase": "client4-offline-5s",
+        "cpuPercent": 0,
+        "rssMb": 89.46,
+        "heapUsedMb": 22.88
+      },
+      {
+        "timestampMs": 6674.69,
+        "phase": "steady-load",
+        "cpuPercent": 0,
+        "rssMb": 89.46,
+        "heapUsedMb": 23
+      },
+      {
+        "timestampMs": 6938.55,
+        "phase": "steady-load",
+        "cpuPercent": 0,
+        "rssMb": 89.71,
+        "heapUsedMb": 23.81
+      },
+      {
+        "timestampMs": 6938.68,
+        "phase": "post-reconnection",
+        "cpuPercent": 0,
+        "rssMb": 89.71,
+        "heapUsedMb": 23.81
+      },
+      {
+        "timestampMs": 7060.02,
+        "phase": "completed",
+        "cpuPercent": 0,
+        "rssMb": 89.63,
+        "heapUsedMb": 24.5
+      }
+    ]
+  },
+  "acceptanceCriteria": {
+    "avgLatencyUnder100ms": true,
+    "maxLatencyUnder1000ms": true,
+    "convergence100Percent": true,
+    "reconnectionRecovery100Percent": true,
+    "cpuUnder30Percent": true
+  },
+  "status": "PASS"
+}
